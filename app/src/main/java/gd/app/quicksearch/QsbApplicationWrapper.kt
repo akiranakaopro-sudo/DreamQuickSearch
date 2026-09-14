@@ -3,6 +3,7 @@ package gd.app.quicksearch
 import android.app.Application
 import android.content.Context
 import gd.app.quicksearch.search.apps.InstalledAppIndex
+import gd.app.quicksearch.search.calendar.CalendarIndex
 import gd.app.quicksearch.search.contacts.ContactsIndex
 import gd.app.quicksearch.search.files.FilesIndex
 import gd.app.quicksearch.search.messages.MessagesIndex
@@ -16,6 +17,7 @@ class QsbApplicationWrapper : Application() {
     val contacts by lazy { ContactsIndex(this) }
     val messages by lazy { MessagesIndex(this) }
     val notes by lazy { NotesIndex(this) }
+    val calendar by lazy { CalendarIndex(this) }
     val files by lazy { FilesIndex(this) }
 
     override fun onCreate() {

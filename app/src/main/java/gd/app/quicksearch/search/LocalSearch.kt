@@ -5,6 +5,8 @@ import android.os.Looper
 import android.util.Log
 import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.apps.InstalledAppIndex
+import gd.app.quicksearch.search.calendar.CalendarIndex
+import gd.app.quicksearch.search.calendar.CalendarItem
 import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.contacts.ContactsIndex
 import gd.app.quicksearch.search.files.FileItem
@@ -25,6 +27,7 @@ class LocalSearch(
     private val contacts: ContactsIndex,
     private val messages: MessagesIndex,
     private val notes: NotesIndex,
+    private val calendar: CalendarIndex,
     private val files: FilesIndex,
     private val listener: Listener,
 ) {
@@ -35,6 +38,7 @@ class LocalSearch(
         fun onContacts(query: String, contacts: List<ContactItem>)
         fun onMessages(query: String, messages: List<MessageItem>)
         fun onNotes(query: String, notes: List<NoteItem>)
+        fun onCalendar(query: String, events: List<CalendarItem>)
         fun onFiles(query: String, files: List<FileItem>)
         fun onCleared()
     }
@@ -46,11 +50,13 @@ class LocalSearch(
     private val contactsExecutor = newWorker("contacts-search")
     private val messagesExecutor = newWorker("messages-search")
     private val notesExecutor = newWorker("notes-search")
+    private val calendarExecutor = newWorker("calendar-search")
     private val filesExecutor = newWorker("files-search")
     private val debounce = Runnable { dispatch(pendingQuery) }
     private var pendingQuery = ""
     private var contactsGranted = false
     private var messagesGranted = false
+    private var calendarGranted = false
     private var filesGranted = false
 
     fun warm() {
@@ -64,6 +70,10 @@ class LocalSearch(
         messagesGranted = messages.hasPermission()
         if (messagesGranted) {
             attachMessages()
+        }
+        calendarGranted = calendar.hasPermission()
+        if (calendarGranted) {
+            attachCalendar()
         }
         filesGranted = files.hasPermission()
         if (filesGranted) {
@@ -128,6 +138,22 @@ class LocalSearch(
         }
     }
 
+    fun onCalendarPermissionChanged() {
+        val granted = calendar.hasPermission()
+        if (granted == calendarGranted) {
+            return
+        }
+        calendarGranted = granted
+        if (granted) {
+            attachCalendar()
+        } else {
+            calendar.invalidate()
+        }
+        if (pendingQuery.isNotBlank()) {
+            dispatch(pendingQuery)
+        }
+    }
+
     fun onStoragePermissionChanged() {
         val granted = files.hasPermission()
         if (granted == filesGranted) {
@@ -150,12 +176,14 @@ class LocalSearch(
         contacts.clearWatch()
         messages.clearWatch()
         notes.clearWatch()
+        calendar.clearWatch()
         files.clearWatch()
         appsExecutor.shutdownNow()
         settingsExecutor.shutdownNow()
         contactsExecutor.shutdownNow()
         messagesExecutor.shutdownNow()
         notesExecutor.shutdownNow()
+        calendarExecutor.shutdownNow()
         filesExecutor.shutdownNow()
     }
 
@@ -195,6 +223,18 @@ class LocalSearch(
         }
     }
 
+    private fun attachCalendar() {
+        calendar.invalidate()
+        calendar.warm(calendarExecutor)
+        calendar.watch {
+            main.post {
+                if (pendingQuery.isNotBlank()) {
+                    dispatch(pendingQuery)
+                }
+            }
+        }
+    }
+
     private fun attachFiles() {
         files.invalidate()
         files.warm(filesExecutor)
@@ -220,6 +260,7 @@ class LocalSearch(
         contactsExecutor.execute { searchContacts(token, query) }
         messagesExecutor.execute { searchMessages(token, query) }
         notesExecutor.execute { searchNotes(token, query) }
+        calendarExecutor.execute { searchCalendar(token, query) }
         filesExecutor.execute { searchFiles(token, query) }
     }
 
@@ -289,6 +330,20 @@ class LocalSearch(
         main.post {
             if (token == generation.get()) {
                 listener.onNotes(query, result)
+            }
+        }
+    }
+
+    private fun searchCalendar(token: Int, query: String) {
+        if (token != generation.get()) {
+            return
+        }
+        val started = System.nanoTime()
+        val result = calendar.search(query)
+        Log.d(TAG, "calendar query='$query' hits=${result.size} ${(System.nanoTime() - started) / 1_000_000}ms")
+        main.post {
+            if (token == generation.get()) {
+                listener.onCalendar(query, result)
             }
         }
     }

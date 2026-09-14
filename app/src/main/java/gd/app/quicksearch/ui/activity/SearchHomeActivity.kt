@@ -27,6 +27,7 @@ import gd.app.quicksearch.R
 import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
 import gd.app.quicksearch.search.LocalSearch
 import gd.app.quicksearch.search.apps.InstalledApp
+import gd.app.quicksearch.search.calendar.CalendarItem
 import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.files.FileItem
 import gd.app.quicksearch.search.files.FilesIndex
@@ -34,6 +35,7 @@ import gd.app.quicksearch.search.messages.MessageItem
 import gd.app.quicksearch.search.notes.NoteItem
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.ui.home.SearchAppAdapter
+import gd.app.quicksearch.ui.home.SearchCalendarAdapter
 import gd.app.quicksearch.ui.home.SearchContactsAdapter
 import gd.app.quicksearch.ui.home.SearchFilesAdapter
 import gd.app.quicksearch.ui.home.SearchHomeBackdrop
@@ -51,12 +53,14 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private lateinit var contactsAdapter: SearchContactsAdapter
     private lateinit var messagesAdapter: SearchMessagesAdapter
     private lateinit var notesAdapter: SearchNotesAdapter
+    private lateinit var calendarAdapter: SearchCalendarAdapter
     private lateinit var filesAdapter: SearchFilesAdapter
     private lateinit var appsHeader: SectionHeaderAdapter
     private lateinit var settingsHeader: SectionHeaderAdapter
     private lateinit var contactsHeader: SectionHeaderAdapter
     private lateinit var messagesHeader: SectionHeaderAdapter
     private lateinit var notesHeader: SectionHeaderAdapter
+    private lateinit var calendarHeader: SectionHeaderAdapter
     private lateinit var filesHeader: SectionHeaderAdapter
     private var backdrop: SearchHomeBackdrop? = null
     private var appsReady = true
@@ -64,6 +68,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var contactsReady = true
     private var messagesReady = true
     private var notesReady = true
+    private var calendarReady = true
     private var filesReady = true
     private var askedSensitivePermissions = false
 
@@ -75,6 +80,9 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
         if (result[Manifest.permission.READ_SMS] == true) {
             localSearch.onSmsPermissionChanged()
+        }
+        if (result[Manifest.permission.READ_CALENDAR] == true) {
+            localSearch.onCalendarPermissionChanged()
         }
         if (FilesIndex.neededPermissions().any { result[it] == true }) {
             localSearch.onStoragePermissionChanged()
@@ -99,7 +107,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         setupSearch()
         insetContent()
         val app = QsbApplicationWrapper.app()
-        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, app.messages, app.notes, app.files, this).also { it.warm() }
+        localSearch = LocalSearch(
+            app.installedApps,
+            app.settings,
+            app.contacts,
+            app.messages,
+            app.notes,
+            app.calendar,
+            app.files,
+            this,
+        ).also { it.warm() }
         registerPackageChanges()
     }
 
@@ -107,6 +124,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         super.onStart()
         localSearch.onContactsPermissionChanged()
         localSearch.onSmsPermissionChanged()
+        localSearch.onCalendarPermissionChanged()
         localSearch.onStoragePermissionChanged()
     }
 
@@ -127,18 +145,21 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         contactsReady = false
         messagesReady = false
         notesReady = false
+        calendarReady = false
         filesReady = false
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
         messagesAdapter.submit(emptyList())
         notesAdapter.submit(emptyList())
+        calendarAdapter.submit(emptyList())
         filesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
         messagesHeader.hide()
         notesHeader.hide()
+        calendarHeader.hide()
         filesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
@@ -193,6 +214,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         updateEmptyState(query)
     }
 
+    override fun onCalendar(query: String, events: List<CalendarItem>) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        calendarReady = true
+        calendarAdapter.submit(events)
+        bindSection(calendarHeader, R.string.search_section_calendar, events.isNotEmpty())
+        updateEmptyState(query)
+    }
+
     override fun onFiles(query: String, files: List<FileItem>) {
         if (isDestroyed || isFinishing) {
             return
@@ -212,18 +243,21 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         contactsReady = true
         messagesReady = true
         notesReady = true
+        calendarReady = true
         filesReady = true
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
         messagesAdapter.submit(emptyList())
         notesAdapter.submit(emptyList())
+        calendarAdapter.submit(emptyList())
         filesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
         messagesHeader.hide()
         notesHeader.hide()
+        calendarHeader.hide()
         filesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
@@ -233,12 +267,14 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         contactsHeader = SectionHeaderAdapter()
         messagesHeader = SectionHeaderAdapter()
         notesHeader = SectionHeaderAdapter()
+        calendarHeader = SectionHeaderAdapter()
         filesHeader = SectionHeaderAdapter()
         settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
         contactsAdapter = SearchContactsAdapter(::openContact)
         messagesAdapter = SearchMessagesAdapter(::openMessage)
         notesAdapter = SearchNotesAdapter(::openNote)
+        calendarAdapter = SearchCalendarAdapter(::openCalendar)
         filesAdapter = SearchFilesAdapter(::openFile)
         settingsAdapter = SearchSettingsAdapter(::openSetting)
         binding.searchResults.apply {
@@ -252,6 +288,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                 messagesAdapter,
                 notesHeader,
                 notesAdapter,
+                calendarHeader,
+                calendarAdapter,
                 filesHeader,
                 filesAdapter,
                 settingsHeader,
@@ -300,12 +338,14 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             contactsReady &&
             messagesReady &&
             notesReady &&
+            calendarReady &&
             filesReady &&
             appAdapter.itemCount == 0 &&
             settingsAdapter.itemCount == 0 &&
             contactsAdapter.itemCount == 0 &&
             messagesAdapter.itemCount == 0 &&
             notesAdapter.itemCount == 0 &&
+            calendarAdapter.itemCount == 0 &&
             filesAdapter.itemCount == 0
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
@@ -332,6 +372,19 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     }
 
     private fun openNote(item: NoteItem) {
+        for (intent in item.viewIntents()) {
+            try {
+                startActivity(intent)
+                hideIme()
+                finish()
+                return
+            } catch (_: ActivityNotFoundException) {
+            } catch (_: SecurityException) {
+            }
+        }
+    }
+
+    private fun openCalendar(item: CalendarItem) {
         for (intent in item.viewIntents()) {
             try {
                 startActivity(intent)
@@ -381,6 +434,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             PackageManager.PERMISSION_GRANTED
         ) {
             missing += Manifest.permission.READ_SMS
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            missing += Manifest.permission.READ_CALENDAR
         }
         for (permission in FilesIndex.neededPermissions()) {
             if (ContextCompat.checkSelfPermission(this, permission) !=
