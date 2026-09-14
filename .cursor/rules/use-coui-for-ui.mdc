@@ -1,8 +1,7 @@
 ---
 description: Use COUI widgets and themes for all app UI
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Use COUI for UI
 
 All app UI lives in `:app` and must use the `:coui` library (`com.coui.appcompat`).

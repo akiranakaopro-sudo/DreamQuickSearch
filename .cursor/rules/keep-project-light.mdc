@@ -1,8 +1,7 @@
 ---
 description: Keep the app smooth and light; avoid heavy architecture and deps
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Keep the project light and smooth
 
 Favor a small, fast Views app over a heavy stack.
