@@ -2,6 +2,9 @@
 .gradle/
 build/
 
+# Cursor
+.cursor/
+
 # Local configuration file (sdk path, etc)
 local.properties
 
@@ -34,6 +37,7 @@ ui*.xml
 tools/
 androguard.db
 tmp_*.py
+screenshot*.png
 
 # Keystore files
 *.jks
