@@ -4,13 +4,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.icu.text.Transliterator
 import android.os.Build
-import android.text.TextUtils
 import android.util.Log
+import gd.app.quicksearch.search.SearchText
 import java.text.Collator
-import java.text.Normalizer
-import java.util.Locale
 import java.util.concurrent.Executor
 
 class InstalledAppIndex(context: Context) {
@@ -32,14 +29,14 @@ class InstalledAppIndex(context: Context) {
     }
 
     fun search(query: String): List<InstalledApp> {
-        val needle = query.trim().lowercase(Locale.getDefault())
+        val needle = SearchText.needle(query)
         if (needle.isEmpty()) {
             return emptyList()
         }
-        val compact = needle.replace(" ", "")
+        val compact = SearchText.compact(needle)
         val ranked = ArrayList<Pair<Int, InstalledApp>>()
         for (app in apps()) {
-            val rank = rank(app, needle, compact) ?: continue
+            val rank = SearchText.rank(app.keys, needle, compact) ?: continue
             ranked += rank to app
         }
         ranked.sortWith { a, b ->
@@ -85,16 +82,10 @@ class InstalledAppIndex(context: Context) {
             if (label.isEmpty()) {
                 continue
             }
-            val labelLower = label.lowercase(Locale.getDefault())
-            val pinyin = HanLatin.of(label)
             apps += InstalledApp(
                 component = component,
                 label = label,
-                labelLower = labelLower,
-                labelCompact = labelLower.replace(" ", ""),
-                pinyin = pinyin,
-                pinyinCompact = pinyin.replace(" ", ""),
-                initials = initialsOf(pinyin),
+                keys = SearchText.keys(label),
             )
         }
         apps.sortWith { a, b -> collator.compare(a.label, b.label) }
@@ -107,47 +98,6 @@ class InstalledAppIndex(context: Context) {
     } else {
         @Suppress("DEPRECATION")
         pm.queryIntentActivities(intent, 0)
-    }
-
-    private fun rank(app: InstalledApp, needle: String, compact: String): Int? {
-        return when {
-            app.labelLower.startsWith(needle) -> 0
-            app.labelCompact.startsWith(compact) -> 1
-            app.pinyin.startsWith(needle) || app.pinyinCompact.startsWith(compact) -> 2
-            compact.length >= 2 && app.initials.startsWith(compact) -> 3
-            app.labelLower.contains(needle) || app.labelCompact.contains(compact) -> 4
-            app.pinyin.contains(needle) || app.pinyinCompact.contains(compact) -> 5
-            compact.length >= 3 && app.packageName.lowercase(Locale.US).contains(compact) -> 6
-            else -> null
-        }
-    }
-
-    private object HanLatin {
-        private val transliterator = runCatching { Transliterator.getInstance("Han-Latin") }.getOrNull()
-        private val marks = "\\p{M}+".toRegex()
-
-        fun of(label: String): String {
-            if (TextUtils.isEmpty(label)) {
-                return ""
-            }
-            val latin = transliterator?.transliterate(label) ?: label
-            return Normalizer.normalize(latin, Normalizer.Form.NFD)
-                .replace(marks, "")
-                .lowercase(Locale.getDefault())
-                .trim()
-        }
-    }
-
-    private fun initialsOf(pinyin: String): String {
-        if (pinyin.isEmpty()) {
-            return ""
-        }
-        val builder = StringBuilder()
-        for (part in pinyin.split(' ', '\t')) {
-            val first = part.firstOrNull { it.isLetter() } ?: continue
-            builder.append(first)
-        }
-        return builder.toString()
     }
 
     companion object {

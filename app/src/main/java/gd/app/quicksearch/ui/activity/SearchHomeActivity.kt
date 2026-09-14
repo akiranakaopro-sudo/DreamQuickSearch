@@ -17,25 +17,34 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.core.widget.doAfterTextChanged
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import gd.app.quicksearch.QsbApplicationWrapper
 import gd.app.quicksearch.R
 import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
-import gd.app.quicksearch.search.apps.AppSearch
+import gd.app.quicksearch.search.LocalSearch
 import gd.app.quicksearch.search.apps.InstalledApp
+import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.ui.home.SearchAppAdapter
 import gd.app.quicksearch.ui.home.SearchHomeBackdrop
+import gd.app.quicksearch.ui.home.SearchSettingsAdapter
+import gd.app.quicksearch.ui.home.SectionHeaderAdapter
 
-class SearchHomeActivity : AppCompatActivity() {
+class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
     private lateinit var binding: ActivitySearchHomeBinding
-    private lateinit var appSearch: AppSearch
+    private lateinit var localSearch: LocalSearch
     private lateinit var appAdapter: SearchAppAdapter
+    private lateinit var settingsAdapter: SearchSettingsAdapter
+    private lateinit var appsHeader: SectionHeaderAdapter
+    private lateinit var settingsHeader: SectionHeaderAdapter
     private var backdrop: SearchHomeBackdrop? = null
+    private var appsReady = true
+    private var settingsReady = true
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            appSearch.refresh()
+            localSearch.refresh()
         }
     }
 
@@ -50,23 +59,81 @@ class SearchHomeActivity : AppCompatActivity() {
         setupResults()
         setupSearch()
         insetContent()
-        appSearch = AppSearch(QsbApplicationWrapper.app().installedApps, ::bindApps).also { it.warm() }
+        val app = QsbApplicationWrapper.app()
+        localSearch = LocalSearch(app.installedApps, app.settings, this).also { it.warm() }
         registerPackageChanges()
     }
 
     override fun onDestroy() {
         unregisterReceiver(packageReceiver)
-        appSearch.release()
+        localSearch.release()
         backdrop?.release()
         backdrop = null
         super.onDestroy()
     }
 
+    override fun onQueryStarted(query: String) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        appsReady = false
+        settingsReady = false
+        appAdapter.submit(emptyList())
+        settingsAdapter.submit(emptyList())
+        appsHeader.hide()
+        settingsHeader.hide()
+        binding.emptyState.visibility = View.GONE
+    }
+
+    override fun onApps(query: String, apps: List<InstalledApp>) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        appsReady = true
+        appAdapter.submit(apps)
+        if (apps.isEmpty()) {
+            appsHeader.hide()
+        } else {
+            appsHeader.show(getString(R.string.search_section_apps))
+        }
+        updateEmptyState(query)
+    }
+
+    override fun onSettings(query: String, settings: List<SettingItem>) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        settingsReady = true
+        settingsAdapter.submit(settings)
+        if (settings.isEmpty()) {
+            settingsHeader.hide()
+        } else {
+            settingsHeader.show(getString(R.string.search_section_settings))
+        }
+        updateEmptyState(query)
+    }
+
+    override fun onCleared() {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        appsReady = true
+        settingsReady = true
+        appAdapter.submit(emptyList())
+        settingsAdapter.submit(emptyList())
+        appsHeader.hide()
+        settingsHeader.hide()
+        binding.emptyState.visibility = View.GONE
+    }
+
     private fun setupResults() {
+        appsHeader = SectionHeaderAdapter()
+        settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
+        settingsAdapter = SearchSettingsAdapter(::openSetting)
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
-            adapter = appAdapter
+            adapter = ConcatAdapter(appsHeader, appAdapter, settingsHeader, settingsAdapter)
             itemAnimator = null
             setHasFixedSize(true)
         }
@@ -79,30 +146,28 @@ class SearchHomeActivity : AppCompatActivity() {
         val input = binding.searchBar.searchInput
         input.imeOptions = EditorInfo.IME_ACTION_SEARCH
         input.doAfterTextChanged { text ->
-            appSearch.onQueryChanged(text?.toString().orEmpty())
+            localSearch.onQueryChanged(text?.toString().orEmpty())
         }
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                appSearch.submitNow(input.text?.toString().orEmpty())
+                localSearch.submitNow(input.text?.toString().orEmpty())
                 true
             } else {
                 false
             }
         }
         binding.searchBar.searchAction.setOnClickListener {
-            appSearch.submitNow(input.text?.toString().orEmpty())
+            localSearch.submitNow(input.text?.toString().orEmpty())
         }
     }
 
-    private fun bindApps(query: String, apps: List<InstalledApp>) {
-        if (isDestroyed || isFinishing) {
-            return
-        }
-        appAdapter.submit(apps)
-        val hasQuery = query.isNotEmpty()
-        binding.appsSectionTitle.visibility = if (hasQuery && apps.isNotEmpty()) View.VISIBLE else View.GONE
-        binding.searchResults.visibility = if (apps.isNotEmpty()) View.VISIBLE else View.GONE
-        binding.emptyState.visibility = if (hasQuery && apps.isEmpty()) View.VISIBLE else View.GONE
+    private fun updateEmptyState(query: String) {
+        val empty = query.isNotEmpty() &&
+            appsReady &&
+            settingsReady &&
+            appAdapter.itemCount == 0 &&
+            settingsAdapter.itemCount == 0
+        binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
 
     private fun openApp(app: InstalledApp) {
@@ -110,12 +175,21 @@ class SearchHomeActivity : AppCompatActivity() {
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(app.component)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        launchAndFinish(launch)
+    }
+
+    private fun openSetting(item: SettingItem) {
+        val launch = item.launchIntent() ?: return
+        launchAndFinish(launch)
+    }
+
+    private fun launchAndFinish(intent: Intent) {
         try {
-            startActivity(launch)
+            startActivity(intent)
             hideIme()
             finish()
         } catch (_: ActivityNotFoundException) {
-            appSearch.refresh()
+            localSearch.refresh()
         }
     }
 

@@ -6,6 +6,15 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+        <package android:name="com.android.settings" />
+        <package android:name="com.oplus.settings" />
+        <package android:name="com.coloros.settings" />
+        <provider android:authorities="com.android.settings" />
+        <provider android:authorities="com.oplus.settings" />
+        <provider android:authorities="com.coloros.settings" />
     </queries>
 
     <application
