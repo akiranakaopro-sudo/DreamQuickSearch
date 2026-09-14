@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Global Search</string>
+    <string name="search_hint">Search this device and the web</string>
+    <string name="search_empty_hint">Type to search apps, settings, files, and more</string>
+</resources>

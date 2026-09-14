@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="search_background">#FFF7F7F7</color>
+    <color name="search_bar_background">#FFFFFFFF</color>
+    <color name="search_text">#FF1A1A1A</color>
+    <color name="search_hint">#FF8A8A8A</color>
+    <color name="search_accent">#FF0066FF</color>
+    <color name="ic_launcher_background">#FF0066FF</color>
+</resources>

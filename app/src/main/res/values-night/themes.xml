@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.QuickSearchBox" parent="Theme.COUI.Main.Dark">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="viewInflaterClass">com.coui.appcompat.theme.COUIComponentsViewInflater</item>
+        <item name="couiSearchBarStyle">@style/Widget.COUI.COUISearchBar.Dark</item>
+    </style>
+</resources>
