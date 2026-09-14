@@ -7,4 +7,12 @@
     <color name="search_accent">#FF0066FF</color>
     <color name="ic_launcher_background">#FF0066FF</color>
     <color name="search_home_scrim">#66000000</color>
+    <color name="search_bar_fill">#33FFFFFF</color>
+    <color name="search_bar_icon">#D9FFFFFF</color>
+    <color name="search_bar_hint">#99FFFFFF</color>
+    <color name="search_bar_text">#FFFFFFFF</color>
+    <color name="search_bar_divider">#4DFFFFFF</color>
+    <color name="search_bar_action_fill">#FFFFFFFF</color>
+    <color name="search_bar_action_text">#FFFFFFFF</color>
+    <color name="search_bar_ripple">#1FFFFFFF</color>
 </resources>

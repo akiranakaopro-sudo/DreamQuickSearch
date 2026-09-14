@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/search_bar_height"
+    android:background="@drawable/bg_search_bar"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="4dp">
+
+    <ImageView
+        android:id="@+id/search_icon"
+        android:layout_width="@dimen/search_bar_icon_size"
+        android:layout_height="@dimen/search_bar_icon_size"
+        android:layout_marginStart="12dp"
+        android:contentDescription="@string/search_action"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_search_bar" />
+
+    <EditText
+        android:id="@+id/search_input"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:background="@null"
+        android:ellipsize="end"
+        android:gravity="center_vertical|start"
+        android:hint="@string/search_hint"
+        android:imeOptions="actionSearch"
+        android:importantForAutofill="no"
+        android:includeFontPadding="false"
+        android:inputType="text"
+        android:maxLines="1"
+        android:padding="0dp"
+        android:textColor="@color/search_bar_text"
+        android:textColorHint="@color/search_bar_hint"
+        android:textCursorDrawable="@null"
+        android:textSize="@dimen/search_bar_text_size" />
+
+    <ImageView
+        android:id="@+id/search_voice"
+        android:layout_width="@dimen/search_bar_icon_size"
+        android:layout_height="@dimen/search_bar_icon_size"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_search_icon_ripple"
+        android:contentDescription="@string/search_voice"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_search_voice" />
+
+    <View
+        android:layout_width="@dimen/search_bar_divider_width"
+        android:layout_height="@dimen/search_bar_divider_height"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="6dp"
+        android:background="@color/search_bar_divider" />
+
+    <TextView
+        android:id="@+id/search_action"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/bg_search_action"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:paddingHorizontal="@dimen/search_bar_action_padding_horizontal"
+        android:text="@string/search_action"
+        android:textColor="@color/search_bar_action_text"
+        android:textSize="@dimen/search_bar_action_text_size" />
+
+</LinearLayout>

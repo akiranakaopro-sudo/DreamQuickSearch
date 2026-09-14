@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/search_home_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -27,14 +26,12 @@
         android:background="@color/search_home_scrim"
         android:importantForAccessibility="no" />
 
-    <com.coui.appcompat.searchview.COUISearchBar
+    <include
         android:id="@+id/search_bar"
-        style="@style/Widget.COUI.COUISearchBar.Dark"
+        layout="@layout/view_search_bar"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/coui_search_bar_height"
+        android:layout_height="@dimen/search_bar_height"
         android:layout_gravity="top"
-        android:layout_marginHorizontal="16dp"
-        app:functionalButtonText="@string/search_action"
-        app:searchHint="@string/search_hint" />
+        android:layout_marginHorizontal="@dimen/search_bar_margin_horizontal" />
 
 </FrameLayout>

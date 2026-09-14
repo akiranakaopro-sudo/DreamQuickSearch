@@ -2,9 +2,8 @@
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
     android:color="@color/search_bar_ripple">
     <item android:id="@android:id/mask">
-        <shape android:shape="rectangle">
+        <shape android:shape="oval">
             <solid android:color="@android:color/white" />
-            <corners android:radius="@dimen/search_bar_action_radius" />
         </shape>
     </item>
 </ripple>

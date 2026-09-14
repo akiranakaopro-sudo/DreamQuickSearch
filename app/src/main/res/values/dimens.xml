@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="search_bar_height">44dp</dimen>
+    <dimen name="search_bar_margin_horizontal">16dp</dimen>
+    <dimen name="search_bar_margin_top">8dp</dimen>
+    <dimen name="search_bar_icon_size">20dp</dimen>
+    <dimen name="search_bar_icon_padding">8dp</dimen>
+    <dimen name="search_bar_action_height">32dp</dimen>
+    <dimen name="search_bar_action_radius">16dp</dimen>
+    <dimen name="search_bar_action_padding_horizontal">14dp</dimen>
+    <dimen name="search_bar_action_margin">6dp</dimen>
+    <dimen name="search_bar_divider_width">1dp</dimen>
+    <dimen name="search_bar_divider_height">14dp</dimen>
+    <dimen name="search_bar_text_size">16sp</dimen>
+    <dimen name="search_bar_action_text_size">14sp</dimen>
+</resources>
