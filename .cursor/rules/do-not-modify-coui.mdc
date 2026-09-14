@@ -1,0 +1,15 @@
+---
+description: Treat coui/ as a third-party library; never edit it
+globs: coui/**
+alwaysApply: true
+---
+
+# Do not code COUI
+
+`coui/` is a vendored library. Use it; do not change it.
+
+- Do not edit sources, resources, assets, or manifests under `coui/`.
+- Do not "fix" COUI APIs, add widgets, or restyle COUI internals.
+- App-specific UI, themes, and behavior belong in `:app` (`gd.app.quicksearch`).
+- If COUI is missing a widget, compose the screen in `:app` from existing COUI views — do not patch the library.
+- Gradle wiring for `:coui` (include + `implementation(project(":coui"))`) is allowed; library source is not.

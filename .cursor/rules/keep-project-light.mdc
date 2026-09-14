@@ -1,0 +1,15 @@
+---
+description: Keep the app smooth and light; avoid heavy architecture and deps
+alwaysApply: true
+---
+
+# Keep the project light and smooth
+
+Favor a small, fast Views app over a heavy stack.
+
+- Do not add frameworks, DI containers, extra modules, or libraries unless they are required for a feature.
+- Do not introduce Compose, large animation stacks, or unused Google/Material UI kits.
+- Keep architecture simple: Activities/Fragments, view binding, small helpers. No enterprise layers "just in case."
+- Avoid work on the main thread, oversized bitmaps, unbounded lists, and startup init that is not needed yet.
+- Prefer one focused implementation over multiple abstractions for the same search path.
+- New code should stay in `:app`. Do not grow `:coui` or add satellite modules without a clear need.

@@ -1,0 +1,24 @@
+---
+description: Optimize for fast search and fast result display
+alwaysApply: true
+---
+
+# Search speed and show speed
+
+Local search must feel instant: query fast, first results on screen fast.
+
+- Search off the main thread; keep the UI thread free for rendering.
+- Show the first useful results as soon as they are ready; do not wait for every source.
+- Prefer incremental/partial updates over one big dump at the end.
+- Index or cache what will be queried often (apps, recent queries); avoid full rescan on every keystroke.
+- Debounce input, cancel stale queries, and ignore outdated results.
+- Bind lists with stable IDs / payloads; do not rebuild the whole adapter on each keystroke.
+- Measure query time and bind time when changing search or result UI.
+
+```kotlin
+// BAD: block UI, wait for all sources, then show
+val all = sources.map { it.search(query) }.flatten()
+adapter.submitList(all)
+
+// GOOD: each source posts results as they finish; drop stale generations
+```

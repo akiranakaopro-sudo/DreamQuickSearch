@@ -1,0 +1,23 @@
+---
+description: Use COUI widgets and themes for all app UI
+alwaysApply: true
+---
+
+# Use COUI for UI
+
+All app UI lives in `:app` and must use the `:coui` library (`com.coui.appcompat`).
+
+- Theme screens with `Theme.COUI.Main.Light` / `Theme.COUI.Main.Dark` (or a style that parents those).
+- Inflate COUI widgets (`COUISearchBar`, `COUIEmptyStateView`, COUI lists, buttons, dialogs, etc.).
+- Prefer COUI attributes (`?attr/couiColorBackground`, `couiSearchBarStyle`) over Material or custom drawables.
+- Set `viewInflaterClass` to `com.coui.appcompat.theme.COUIComponentsViewInflater` on the app theme.
+- Do not add Material Design screens, AppCompat-only widgets, or custom lookalikes when a COUI widget exists.
+
+```xml
+<!-- BAD -->
+<com.google.android.material.appbar.MaterialToolbar ... />
+
+<!-- GOOD -->
+<com.coui.appcompat.searchview.COUISearchBar
+    app:searchHint="@string/search_hint" />
+```

@@ -1,0 +1,22 @@
+---
+description: Do not use Jetpack Compose; keep XML + Views
+alwaysApply: true
+---
+
+# Do not use Compose
+
+This app is Views + XML only.
+
+- Do not add Compose dependencies (`compose-bom`, `androidx.compose.*`, `activity-compose`).
+- Do not create `@Composable` functions, Compose themes, or `setContent { }`.
+- Do not enable `buildFeatures { compose = true }`.
+- New screens use XML layouts, view binding, and COUI widgets.
+
+```kotlin
+// BAD
+setContent { SearchHomeScreen() }
+
+// GOOD
+binding = ActivitySearchHomeBinding.inflate(layoutInflater)
+setContentView(binding.root)
+```

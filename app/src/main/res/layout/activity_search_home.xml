@@ -1,31 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/search_home_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/couiColorBackground">
+    android:background="@android:color/transparent">
+
+    <ImageView
+        android:id="@+id/blur_backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:id="@+id/blur_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/blur_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/search_home_scrim"
+        android:importantForAccessibility="no" />
 
     <com.coui.appcompat.searchview.COUISearchBar
         android:id="@+id/search_bar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        style="@style/Widget.COUI.COUISearchBar.Dark"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/coui_search_bar_height"
+        android:layout_gravity="top"
         android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:functionalButtonText="@string/search_action"
         app:searchHint="@string/search_hint" />
 
-    <com.coui.appcompat.emptyview.COUIEmptyStateView
-        android:id="@+id/empty_state"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:anim_autoPlay="true"
-        app:anim_fileName="no_search_results_light.json"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/search_bar"
-        app:titleText="@string/search_empty_hint" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

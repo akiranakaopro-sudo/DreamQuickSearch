@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.QuickSearchBox" parent="Theme.COUI.Main.Light">
+    <style name="Theme.QuickSearchBox" parent="Theme.COUI.Main.Dark">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
@@ -13,7 +13,10 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackgroundBlurRadius">128px</item>
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:windowBlurBehindRadius">128px</item>
         <item name="viewInflaterClass">com.coui.appcompat.theme.COUIComponentsViewInflater</item>
-        <item name="couiSearchBarStyle">@style/Widget.COUI.COUISearchBar</item>
+        <item name="couiSearchBarStyle">@style/Widget.COUI.COUISearchBar.Dark</item>
     </style>
 </resources>
