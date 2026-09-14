@@ -7,6 +7,8 @@ import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.apps.InstalledAppIndex
 import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.contacts.ContactsIndex
+import gd.app.quicksearch.search.messages.MessageItem
+import gd.app.quicksearch.search.messages.MessagesIndex
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.search.settings.SettingsIndex
 import java.util.concurrent.ExecutorService
@@ -17,6 +19,7 @@ class LocalSearch(
     private val apps: InstalledAppIndex,
     private val settings: SettingsIndex,
     private val contacts: ContactsIndex,
+    private val messages: MessagesIndex,
     private val listener: Listener,
 ) {
     interface Listener {
@@ -24,6 +27,7 @@ class LocalSearch(
         fun onApps(query: String, apps: List<InstalledApp>)
         fun onSettings(query: String, settings: List<SettingItem>)
         fun onContacts(query: String, contacts: List<ContactItem>)
+        fun onMessages(query: String, messages: List<MessageItem>)
         fun onCleared()
     }
 
@@ -32,9 +36,11 @@ class LocalSearch(
     private val appsExecutor = newWorker("app-search")
     private val settingsExecutor = newWorker("settings-search")
     private val contactsExecutor = newWorker("contacts-search")
+    private val messagesExecutor = newWorker("messages-search")
     private val debounce = Runnable { dispatch(pendingQuery) }
     private var pendingQuery = ""
     private var contactsGranted = false
+    private var messagesGranted = false
 
     fun warm() {
         apps.warm(appsExecutor)
@@ -42,6 +48,10 @@ class LocalSearch(
         contactsGranted = contacts.hasPermission()
         if (contactsGranted) {
             attachContacts()
+        }
+        messagesGranted = messages.hasPermission()
+        if (messagesGranted) {
+            attachMessages()
         }
     }
 
@@ -86,19 +96,49 @@ class LocalSearch(
         }
     }
 
+    fun onSmsPermissionChanged() {
+        val granted = messages.hasPermission()
+        if (granted == messagesGranted) {
+            return
+        }
+        messagesGranted = granted
+        if (granted) {
+            attachMessages()
+        } else {
+            messages.invalidate()
+        }
+        if (pendingQuery.isNotBlank()) {
+            dispatch(pendingQuery)
+        }
+    }
+
     fun release() {
         main.removeCallbacks(debounce)
         generation.incrementAndGet()
         contacts.clearWatch()
+        messages.clearWatch()
         appsExecutor.shutdownNow()
         settingsExecutor.shutdownNow()
         contactsExecutor.shutdownNow()
+        messagesExecutor.shutdownNow()
     }
 
     private fun attachContacts() {
         contacts.invalidate()
         contacts.warm(contactsExecutor)
         contacts.watch {
+            main.post {
+                if (pendingQuery.isNotBlank()) {
+                    dispatch(pendingQuery)
+                }
+            }
+        }
+    }
+
+    private fun attachMessages() {
+        messages.invalidate()
+        messages.warm(messagesExecutor)
+        messages.watch {
             main.post {
                 if (pendingQuery.isNotBlank()) {
                     dispatch(pendingQuery)
@@ -118,6 +158,7 @@ class LocalSearch(
         appsExecutor.execute { searchApps(token, query) }
         settingsExecutor.execute { searchSettings(token, query) }
         contactsExecutor.execute { searchContacts(token, query) }
+        messagesExecutor.execute { searchMessages(token, query) }
     }
 
     private fun searchApps(token: Int, query: String) {
@@ -158,6 +199,20 @@ class LocalSearch(
         main.post {
             if (token == generation.get()) {
                 listener.onContacts(query, result)
+            }
+        }
+    }
+
+    private fun searchMessages(token: Int, query: String) {
+        if (token != generation.get()) {
+            return
+        }
+        val started = System.nanoTime()
+        val result = messages.search(query)
+        Log.d(TAG, "messages query='$query' hits=${result.size} ${(System.nanoTime() - started) / 1_000_000}ms")
+        main.post {
+            if (token == generation.get()) {
+                listener.onMessages(query, result)
             }
         }
     }

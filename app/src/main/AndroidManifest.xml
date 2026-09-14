@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
 
     <queries>
         <intent>
@@ -24,6 +25,42 @@
         <package android:name="com.android.contacts" />
         <package android:name="com.google.android.contacts" />
         <package android:name="com.oplus.contacts" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mmsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="vnd.android-dir/mms-sms" />
+        </intent>
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.android.mms" />
+        <package android:name="com.android.messaging" />
+        <package android:name="com.oplus.mms" />
+        <package android:name="com.coloros.mms" />
+        <package android:name="com.heytap.mms" />
+        <package android:name="com.oneplus.mms" />
+        <package android:name="com.oppo.mms" />
     </queries>
 
     <application

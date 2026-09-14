@@ -28,10 +28,12 @@ import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
 import gd.app.quicksearch.search.LocalSearch
 import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.contacts.ContactItem
+import gd.app.quicksearch.search.messages.MessageItem
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.ui.home.SearchAppAdapter
 import gd.app.quicksearch.ui.home.SearchContactsAdapter
 import gd.app.quicksearch.ui.home.SearchHomeBackdrop
+import gd.app.quicksearch.ui.home.SearchMessagesAdapter
 import gd.app.quicksearch.ui.home.SearchSettingsAdapter
 import gd.app.quicksearch.ui.home.SectionHeaderAdapter
 
@@ -42,20 +44,26 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private lateinit var appAdapter: SearchAppAdapter
     private lateinit var settingsAdapter: SearchSettingsAdapter
     private lateinit var contactsAdapter: SearchContactsAdapter
+    private lateinit var messagesAdapter: SearchMessagesAdapter
     private lateinit var appsHeader: SectionHeaderAdapter
     private lateinit var settingsHeader: SectionHeaderAdapter
     private lateinit var contactsHeader: SectionHeaderAdapter
+    private lateinit var messagesHeader: SectionHeaderAdapter
     private var backdrop: SearchHomeBackdrop? = null
     private var appsReady = true
     private var settingsReady = true
     private var contactsReady = true
-    private var askedContactsPermission = false
+    private var messagesReady = true
+    private var askedSensitivePermissions = false
 
-    private val requestContactsPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
+    private val requestSensitivePermissions = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        if (result[Manifest.permission.READ_CONTACTS] == true) {
             localSearch.onContactsPermissionChanged()
+        }
+        if (result[Manifest.permission.READ_SMS] == true) {
+            localSearch.onSmsPermissionChanged()
         }
     }
 
@@ -77,13 +85,14 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         setupSearch()
         insetContent()
         val app = QsbApplicationWrapper.app()
-        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, this).also { it.warm() }
+        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, app.messages, this).also { it.warm() }
         registerPackageChanges()
     }
 
     override fun onStart() {
         super.onStart()
         localSearch.onContactsPermissionChanged()
+        localSearch.onSmsPermissionChanged()
     }
 
     override fun onDestroy() {
@@ -101,12 +110,15 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         appsReady = false
         settingsReady = false
         contactsReady = false
+        messagesReady = false
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
+        messagesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
+        messagesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
@@ -140,6 +152,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         updateEmptyState(query)
     }
 
+    override fun onMessages(query: String, messages: List<MessageItem>) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        messagesReady = true
+        messagesAdapter.submit(messages)
+        bindSection(messagesHeader, R.string.search_section_messages, messages.isNotEmpty())
+        updateEmptyState(query)
+    }
+
     override fun onCleared() {
         if (isDestroyed || isFinishing) {
             return
@@ -147,21 +169,26 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         appsReady = true
         settingsReady = true
         contactsReady = true
+        messagesReady = true
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
+        messagesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
+        messagesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
     private fun setupResults() {
         appsHeader = SectionHeaderAdapter()
         contactsHeader = SectionHeaderAdapter()
+        messagesHeader = SectionHeaderAdapter()
         settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
         contactsAdapter = SearchContactsAdapter(::openContact)
+        messagesAdapter = SearchMessagesAdapter(::openMessage)
         settingsAdapter = SearchSettingsAdapter(::openSetting)
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
@@ -170,6 +197,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                 appAdapter,
                 contactsHeader,
                 contactsAdapter,
+                messagesHeader,
+                messagesAdapter,
                 settingsHeader,
                 settingsAdapter,
             )
@@ -185,7 +214,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         val input = binding.searchBar.searchInput
         input.imeOptions = EditorInfo.IME_ACTION_SEARCH
         input.doAfterTextChanged { text ->
-            maybeAskContactsPermission()
+            maybeAskSensitivePermissions()
             localSearch.onQueryChanged(text?.toString().orEmpty())
         }
         input.setOnEditorActionListener { _, actionId, _ ->
@@ -214,9 +243,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             appsReady &&
             settingsReady &&
             contactsReady &&
+            messagesReady &&
             appAdapter.itemCount == 0 &&
             settingsAdapter.itemCount == 0 &&
-            contactsAdapter.itemCount == 0
+            contactsAdapter.itemCount == 0 &&
+            messagesAdapter.itemCount == 0
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
 
@@ -237,6 +268,19 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         launchAndFinish(item.viewIntent())
     }
 
+    private fun openMessage(item: MessageItem) {
+        for (intent in item.conversationIntents(this)) {
+            try {
+                startActivity(intent)
+                hideIme()
+                finish()
+                return
+            } catch (_: ActivityNotFoundException) {
+            } catch (_: SecurityException) {
+            }
+        }
+    }
+
     private fun launchAndFinish(intent: Intent) {
         try {
             startActivity(intent)
@@ -247,17 +291,26 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
     }
 
-    private fun maybeAskContactsPermission() {
-        if (askedContactsPermission) {
+    private fun maybeAskSensitivePermissions() {
+        if (askedSensitivePermissions) {
             return
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) ==
+        val missing = ArrayList<String>(2)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
+            missing += Manifest.permission.READ_CONTACTS
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            missing += Manifest.permission.READ_SMS
+        }
+        if (missing.isEmpty()) {
             return
         }
-        askedContactsPermission = true
-        requestContactsPermission.launch(Manifest.permission.READ_CONTACTS)
+        askedSensitivePermissions = true
+        requestSensitivePermissions.launch(missing.toTypedArray())
     }
 
     private fun insetContent() {
