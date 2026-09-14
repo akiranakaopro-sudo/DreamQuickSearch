@@ -1,10 +1,8 @@
 package gd.app.quicksearch.ui.activity
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -21,7 +19,8 @@ class SearchHomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
+        window.setBackgroundDrawableResource(android.R.color.transparent)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         binding = ActivitySearchHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
         backdrop = SearchHomeBackdrop(this, binding).also { it.apply() }

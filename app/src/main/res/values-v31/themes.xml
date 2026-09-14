@@ -13,9 +13,9 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowShowWallpaper">true</item>
-        <item name="android:windowBackgroundBlurRadius">128px</item>
+        <item name="android:windowBackgroundBlurRadius">150px</item>
         <item name="android:windowBlurBehindEnabled">true</item>
-        <item name="android:windowBlurBehindRadius">128px</item>
+        <item name="android:windowBlurBehindRadius">150px</item>
         <item name="viewInflaterClass">com.coui.appcompat.theme.COUIComponentsViewInflater</item>
         <item name="couiSearchBarStyle">@style/Widget.COUI.COUISearchBar</item>
     </style>
