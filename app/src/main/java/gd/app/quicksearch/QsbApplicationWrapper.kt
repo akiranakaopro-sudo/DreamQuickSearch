@@ -3,12 +3,14 @@ package gd.app.quicksearch
 import android.app.Application
 import android.content.Context
 import gd.app.quicksearch.search.apps.InstalledAppIndex
+import gd.app.quicksearch.search.contacts.ContactsIndex
 import gd.app.quicksearch.search.settings.SettingsIndex
 
 class QsbApplicationWrapper : Application() {
 
     val installedApps by lazy { InstalledAppIndex(this) }
     val settings by lazy { SettingsIndex(this) }
+    val contacts by lazy { ContactsIndex(this) }
 
     override fun onCreate() {
         super.onCreate()

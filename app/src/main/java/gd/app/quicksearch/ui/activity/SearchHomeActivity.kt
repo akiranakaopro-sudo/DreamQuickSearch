@@ -1,15 +1,18 @@
 package gd.app.quicksearch.ui.activity
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -24,8 +27,10 @@ import gd.app.quicksearch.R
 import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
 import gd.app.quicksearch.search.LocalSearch
 import gd.app.quicksearch.search.apps.InstalledApp
+import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.ui.home.SearchAppAdapter
+import gd.app.quicksearch.ui.home.SearchContactsAdapter
 import gd.app.quicksearch.ui.home.SearchHomeBackdrop
 import gd.app.quicksearch.ui.home.SearchSettingsAdapter
 import gd.app.quicksearch.ui.home.SectionHeaderAdapter
@@ -36,15 +41,27 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private lateinit var localSearch: LocalSearch
     private lateinit var appAdapter: SearchAppAdapter
     private lateinit var settingsAdapter: SearchSettingsAdapter
+    private lateinit var contactsAdapter: SearchContactsAdapter
     private lateinit var appsHeader: SectionHeaderAdapter
     private lateinit var settingsHeader: SectionHeaderAdapter
+    private lateinit var contactsHeader: SectionHeaderAdapter
     private var backdrop: SearchHomeBackdrop? = null
     private var appsReady = true
     private var settingsReady = true
+    private var contactsReady = true
+    private var askedContactsPermission = false
+
+    private val requestContactsPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            localSearch.onContactsPermissionChanged()
+        }
+    }
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            localSearch.refresh()
+            localSearch.refreshApps()
         }
     }
 
@@ -60,8 +77,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         setupSearch()
         insetContent()
         val app = QsbApplicationWrapper.app()
-        localSearch = LocalSearch(app.installedApps, app.settings, this).also { it.warm() }
+        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, this).also { it.warm() }
         registerPackageChanges()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        localSearch.onContactsPermissionChanged()
     }
 
     override fun onDestroy() {
@@ -78,10 +100,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
         appsReady = false
         settingsReady = false
+        contactsReady = false
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
+        contactsAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
+        contactsHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
@@ -91,11 +116,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
         appsReady = true
         appAdapter.submit(apps)
-        if (apps.isEmpty()) {
-            appsHeader.hide()
-        } else {
-            appsHeader.show(getString(R.string.search_section_apps))
-        }
+        bindSection(appsHeader, R.string.search_section_apps, apps.isNotEmpty())
         updateEmptyState(query)
     }
 
@@ -105,11 +126,17 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
         settingsReady = true
         settingsAdapter.submit(settings)
-        if (settings.isEmpty()) {
-            settingsHeader.hide()
-        } else {
-            settingsHeader.show(getString(R.string.search_section_settings))
+        bindSection(settingsHeader, R.string.search_section_settings, settings.isNotEmpty())
+        updateEmptyState(query)
+    }
+
+    override fun onContacts(query: String, contacts: List<ContactItem>) {
+        if (isDestroyed || isFinishing) {
+            return
         }
+        contactsReady = true
+        contactsAdapter.submit(contacts)
+        bindSection(contactsHeader, R.string.search_section_contacts, contacts.isNotEmpty())
         updateEmptyState(query)
     }
 
@@ -119,21 +146,33 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
         appsReady = true
         settingsReady = true
+        contactsReady = true
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
+        contactsAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
+        contactsHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
     private fun setupResults() {
         appsHeader = SectionHeaderAdapter()
+        contactsHeader = SectionHeaderAdapter()
         settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
+        contactsAdapter = SearchContactsAdapter(::openContact)
         settingsAdapter = SearchSettingsAdapter(::openSetting)
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
-            adapter = ConcatAdapter(appsHeader, appAdapter, settingsHeader, settingsAdapter)
+            adapter = ConcatAdapter(
+                appsHeader,
+                appAdapter,
+                contactsHeader,
+                contactsAdapter,
+                settingsHeader,
+                settingsAdapter,
+            )
             itemAnimator = null
             setHasFixedSize(true)
         }
@@ -146,6 +185,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         val input = binding.searchBar.searchInput
         input.imeOptions = EditorInfo.IME_ACTION_SEARCH
         input.doAfterTextChanged { text ->
+            maybeAskContactsPermission()
             localSearch.onQueryChanged(text?.toString().orEmpty())
         }
         input.setOnEditorActionListener { _, actionId, _ ->
@@ -161,12 +201,22 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
     }
 
+    private fun bindSection(header: SectionHeaderAdapter, titleRes: Int, visible: Boolean) {
+        if (visible) {
+            header.show(getString(titleRes))
+        } else {
+            header.hide()
+        }
+    }
+
     private fun updateEmptyState(query: String) {
         val empty = query.isNotEmpty() &&
             appsReady &&
             settingsReady &&
+            contactsReady &&
             appAdapter.itemCount == 0 &&
-            settingsAdapter.itemCount == 0
+            settingsAdapter.itemCount == 0 &&
+            contactsAdapter.itemCount == 0
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
 
@@ -183,14 +233,31 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         launchAndFinish(launch)
     }
 
+    private fun openContact(item: ContactItem) {
+        launchAndFinish(item.viewIntent())
+    }
+
     private fun launchAndFinish(intent: Intent) {
         try {
             startActivity(intent)
             hideIme()
             finish()
         } catch (_: ActivityNotFoundException) {
-            localSearch.refresh()
+            localSearch.refreshApps()
         }
+    }
+
+    private fun maybeAskContactsPermission() {
+        if (askedContactsPermission) {
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        askedContactsPermission = true
+        requestContactsPermission.launch(Manifest.permission.READ_CONTACTS)
     }
 
     private fun insetContent() {
