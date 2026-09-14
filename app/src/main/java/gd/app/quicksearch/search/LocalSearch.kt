@@ -7,6 +7,8 @@ import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.apps.InstalledAppIndex
 import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.contacts.ContactsIndex
+import gd.app.quicksearch.search.files.FileItem
+import gd.app.quicksearch.search.files.FilesIndex
 import gd.app.quicksearch.search.messages.MessageItem
 import gd.app.quicksearch.search.messages.MessagesIndex
 import gd.app.quicksearch.search.notes.NoteItem
@@ -23,6 +25,7 @@ class LocalSearch(
     private val contacts: ContactsIndex,
     private val messages: MessagesIndex,
     private val notes: NotesIndex,
+    private val files: FilesIndex,
     private val listener: Listener,
 ) {
     interface Listener {
@@ -32,6 +35,7 @@ class LocalSearch(
         fun onContacts(query: String, contacts: List<ContactItem>)
         fun onMessages(query: String, messages: List<MessageItem>)
         fun onNotes(query: String, notes: List<NoteItem>)
+        fun onFiles(query: String, files: List<FileItem>)
         fun onCleared()
     }
 
@@ -42,10 +46,12 @@ class LocalSearch(
     private val contactsExecutor = newWorker("contacts-search")
     private val messagesExecutor = newWorker("messages-search")
     private val notesExecutor = newWorker("notes-search")
+    private val filesExecutor = newWorker("files-search")
     private val debounce = Runnable { dispatch(pendingQuery) }
     private var pendingQuery = ""
     private var contactsGranted = false
     private var messagesGranted = false
+    private var filesGranted = false
 
     fun warm() {
         apps.warm(appsExecutor)
@@ -58,6 +64,10 @@ class LocalSearch(
         messagesGranted = messages.hasPermission()
         if (messagesGranted) {
             attachMessages()
+        }
+        filesGranted = files.hasPermission()
+        if (filesGranted) {
+            attachFiles()
         }
     }
 
@@ -118,17 +128,35 @@ class LocalSearch(
         }
     }
 
+    fun onStoragePermissionChanged() {
+        val granted = files.hasPermission()
+        if (granted == filesGranted) {
+            return
+        }
+        filesGranted = granted
+        if (granted) {
+            attachFiles()
+        } else {
+            files.invalidate()
+        }
+        if (pendingQuery.isNotBlank()) {
+            dispatch(pendingQuery)
+        }
+    }
+
     fun release() {
         main.removeCallbacks(debounce)
         generation.incrementAndGet()
         contacts.clearWatch()
         messages.clearWatch()
         notes.clearWatch()
+        files.clearWatch()
         appsExecutor.shutdownNow()
         settingsExecutor.shutdownNow()
         contactsExecutor.shutdownNow()
         messagesExecutor.shutdownNow()
         notesExecutor.shutdownNow()
+        filesExecutor.shutdownNow()
     }
 
     private fun attachContacts() {
@@ -167,6 +195,18 @@ class LocalSearch(
         }
     }
 
+    private fun attachFiles() {
+        files.invalidate()
+        files.warm(filesExecutor)
+        files.watch {
+            main.post {
+                if (pendingQuery.isNotBlank()) {
+                    dispatch(pendingQuery)
+                }
+            }
+        }
+    }
+
     private fun dispatch(raw: String) {
         val query = raw.trim()
         val token = generation.incrementAndGet()
@@ -180,6 +220,7 @@ class LocalSearch(
         contactsExecutor.execute { searchContacts(token, query) }
         messagesExecutor.execute { searchMessages(token, query) }
         notesExecutor.execute { searchNotes(token, query) }
+        filesExecutor.execute { searchFiles(token, query) }
     }
 
     private fun searchApps(token: Int, query: String) {
@@ -248,6 +289,20 @@ class LocalSearch(
         main.post {
             if (token == generation.get()) {
                 listener.onNotes(query, result)
+            }
+        }
+    }
+
+    private fun searchFiles(token: Int, query: String) {
+        if (token != generation.get()) {
+            return
+        }
+        val started = System.nanoTime()
+        val result = files.search(query)
+        Log.d(TAG, "files query='$query' hits=${result.size} ${(System.nanoTime() - started) / 1_000_000}ms")
+        main.post {
+            if (token == generation.get()) {
+                listener.onFiles(query, result)
             }
         }
     }

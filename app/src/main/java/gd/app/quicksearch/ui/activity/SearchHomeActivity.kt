@@ -28,11 +28,14 @@ import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
 import gd.app.quicksearch.search.LocalSearch
 import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.contacts.ContactItem
+import gd.app.quicksearch.search.files.FileItem
+import gd.app.quicksearch.search.files.FilesIndex
 import gd.app.quicksearch.search.messages.MessageItem
 import gd.app.quicksearch.search.notes.NoteItem
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.ui.home.SearchAppAdapter
 import gd.app.quicksearch.ui.home.SearchContactsAdapter
+import gd.app.quicksearch.ui.home.SearchFilesAdapter
 import gd.app.quicksearch.ui.home.SearchHomeBackdrop
 import gd.app.quicksearch.ui.home.SearchMessagesAdapter
 import gd.app.quicksearch.ui.home.SearchNotesAdapter
@@ -48,17 +51,20 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private lateinit var contactsAdapter: SearchContactsAdapter
     private lateinit var messagesAdapter: SearchMessagesAdapter
     private lateinit var notesAdapter: SearchNotesAdapter
+    private lateinit var filesAdapter: SearchFilesAdapter
     private lateinit var appsHeader: SectionHeaderAdapter
     private lateinit var settingsHeader: SectionHeaderAdapter
     private lateinit var contactsHeader: SectionHeaderAdapter
     private lateinit var messagesHeader: SectionHeaderAdapter
     private lateinit var notesHeader: SectionHeaderAdapter
+    private lateinit var filesHeader: SectionHeaderAdapter
     private var backdrop: SearchHomeBackdrop? = null
     private var appsReady = true
     private var settingsReady = true
     private var contactsReady = true
     private var messagesReady = true
     private var notesReady = true
+    private var filesReady = true
     private var askedSensitivePermissions = false
 
     private val requestSensitivePermissions = registerForActivityResult(
@@ -69,6 +75,9 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
         if (result[Manifest.permission.READ_SMS] == true) {
             localSearch.onSmsPermissionChanged()
+        }
+        if (FilesIndex.neededPermissions().any { result[it] == true }) {
+            localSearch.onStoragePermissionChanged()
         }
     }
 
@@ -90,7 +99,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         setupSearch()
         insetContent()
         val app = QsbApplicationWrapper.app()
-        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, app.messages, app.notes, this).also { it.warm() }
+        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, app.messages, app.notes, app.files, this).also { it.warm() }
         registerPackageChanges()
     }
 
@@ -98,6 +107,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         super.onStart()
         localSearch.onContactsPermissionChanged()
         localSearch.onSmsPermissionChanged()
+        localSearch.onStoragePermissionChanged()
     }
 
     override fun onDestroy() {
@@ -117,16 +127,19 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         contactsReady = false
         messagesReady = false
         notesReady = false
+        filesReady = false
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
         messagesAdapter.submit(emptyList())
         notesAdapter.submit(emptyList())
+        filesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
         messagesHeader.hide()
         notesHeader.hide()
+        filesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
@@ -180,6 +193,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         updateEmptyState(query)
     }
 
+    override fun onFiles(query: String, files: List<FileItem>) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        filesReady = true
+        filesAdapter.submit(files)
+        bindSection(filesHeader, R.string.search_section_files, files.isNotEmpty())
+        updateEmptyState(query)
+    }
+
     override fun onCleared() {
         if (isDestroyed || isFinishing) {
             return
@@ -189,16 +212,19 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         contactsReady = true
         messagesReady = true
         notesReady = true
+        filesReady = true
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
         messagesAdapter.submit(emptyList())
         notesAdapter.submit(emptyList())
+        filesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
         messagesHeader.hide()
         notesHeader.hide()
+        filesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
@@ -207,11 +233,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         contactsHeader = SectionHeaderAdapter()
         messagesHeader = SectionHeaderAdapter()
         notesHeader = SectionHeaderAdapter()
+        filesHeader = SectionHeaderAdapter()
         settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
         contactsAdapter = SearchContactsAdapter(::openContact)
         messagesAdapter = SearchMessagesAdapter(::openMessage)
         notesAdapter = SearchNotesAdapter(::openNote)
+        filesAdapter = SearchFilesAdapter(::openFile)
         settingsAdapter = SearchSettingsAdapter(::openSetting)
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
@@ -224,6 +252,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                 messagesAdapter,
                 notesHeader,
                 notesAdapter,
+                filesHeader,
+                filesAdapter,
                 settingsHeader,
                 settingsAdapter,
             )
@@ -270,11 +300,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             contactsReady &&
             messagesReady &&
             notesReady &&
+            filesReady &&
             appAdapter.itemCount == 0 &&
             settingsAdapter.itemCount == 0 &&
             contactsAdapter.itemCount == 0 &&
             messagesAdapter.itemCount == 0 &&
-            notesAdapter.itemCount == 0
+            notesAdapter.itemCount == 0 &&
+            filesAdapter.itemCount == 0
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
 
@@ -292,6 +324,10 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     }
 
     private fun openContact(item: ContactItem) {
+        launchAndFinish(item.viewIntent())
+    }
+
+    private fun openFile(item: FileItem) {
         launchAndFinish(item.viewIntent())
     }
 
@@ -345,6 +381,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             PackageManager.PERMISSION_GRANTED
         ) {
             missing += Manifest.permission.READ_SMS
+        }
+        for (permission in FilesIndex.neededPermissions()) {
+            if (ContextCompat.checkSelfPermission(this, permission) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                missing += permission
+            }
         }
         if (missing.isEmpty()) {
             return

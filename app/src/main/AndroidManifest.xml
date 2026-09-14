@@ -3,6 +3,12 @@
 
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
     <queries>
         <intent>
@@ -74,6 +80,15 @@
         <provider android:authorities="com.coloros.note" />
         <provider android:authorities="com.nearme.note.notesprovider" />
         <provider android:authorities="com.oplus.note" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <package android:name="com.google.android.documentsui" />
+        <package android:name="com.android.documentsui" />
+        <package android:name="com.coloros.filemanager" />
+        <package android:name="com.oplus.filemanager" />
+        <package android:name="com.oneplus.filemanager" />
     </queries>
 
     <application
