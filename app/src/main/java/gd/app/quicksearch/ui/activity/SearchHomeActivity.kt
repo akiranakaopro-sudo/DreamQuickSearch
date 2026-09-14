@@ -29,11 +29,13 @@ import gd.app.quicksearch.search.LocalSearch
 import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.messages.MessageItem
+import gd.app.quicksearch.search.notes.NoteItem
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.ui.home.SearchAppAdapter
 import gd.app.quicksearch.ui.home.SearchContactsAdapter
 import gd.app.quicksearch.ui.home.SearchHomeBackdrop
 import gd.app.quicksearch.ui.home.SearchMessagesAdapter
+import gd.app.quicksearch.ui.home.SearchNotesAdapter
 import gd.app.quicksearch.ui.home.SearchSettingsAdapter
 import gd.app.quicksearch.ui.home.SectionHeaderAdapter
 
@@ -45,15 +47,18 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private lateinit var settingsAdapter: SearchSettingsAdapter
     private lateinit var contactsAdapter: SearchContactsAdapter
     private lateinit var messagesAdapter: SearchMessagesAdapter
+    private lateinit var notesAdapter: SearchNotesAdapter
     private lateinit var appsHeader: SectionHeaderAdapter
     private lateinit var settingsHeader: SectionHeaderAdapter
     private lateinit var contactsHeader: SectionHeaderAdapter
     private lateinit var messagesHeader: SectionHeaderAdapter
+    private lateinit var notesHeader: SectionHeaderAdapter
     private var backdrop: SearchHomeBackdrop? = null
     private var appsReady = true
     private var settingsReady = true
     private var contactsReady = true
     private var messagesReady = true
+    private var notesReady = true
     private var askedSensitivePermissions = false
 
     private val requestSensitivePermissions = registerForActivityResult(
@@ -85,7 +90,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         setupSearch()
         insetContent()
         val app = QsbApplicationWrapper.app()
-        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, app.messages, this).also { it.warm() }
+        localSearch = LocalSearch(app.installedApps, app.settings, app.contacts, app.messages, app.notes, this).also { it.warm() }
         registerPackageChanges()
     }
 
@@ -111,14 +116,17 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         settingsReady = false
         contactsReady = false
         messagesReady = false
+        notesReady = false
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
         messagesAdapter.submit(emptyList())
+        notesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
         messagesHeader.hide()
+        notesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
@@ -162,6 +170,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         updateEmptyState(query)
     }
 
+    override fun onNotes(query: String, notes: List<NoteItem>) {
+        if (isDestroyed || isFinishing) {
+            return
+        }
+        notesReady = true
+        notesAdapter.submit(notes)
+        bindSection(notesHeader, R.string.search_section_notes, notes.isNotEmpty())
+        updateEmptyState(query)
+    }
+
     override fun onCleared() {
         if (isDestroyed || isFinishing) {
             return
@@ -170,14 +188,17 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         settingsReady = true
         contactsReady = true
         messagesReady = true
+        notesReady = true
         appAdapter.submit(emptyList())
         settingsAdapter.submit(emptyList())
         contactsAdapter.submit(emptyList())
         messagesAdapter.submit(emptyList())
+        notesAdapter.submit(emptyList())
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
         messagesHeader.hide()
+        notesHeader.hide()
         binding.emptyState.visibility = View.GONE
     }
 
@@ -185,10 +206,12 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         appsHeader = SectionHeaderAdapter()
         contactsHeader = SectionHeaderAdapter()
         messagesHeader = SectionHeaderAdapter()
+        notesHeader = SectionHeaderAdapter()
         settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
         contactsAdapter = SearchContactsAdapter(::openContact)
         messagesAdapter = SearchMessagesAdapter(::openMessage)
+        notesAdapter = SearchNotesAdapter(::openNote)
         settingsAdapter = SearchSettingsAdapter(::openSetting)
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
@@ -199,6 +222,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                 contactsAdapter,
                 messagesHeader,
                 messagesAdapter,
+                notesHeader,
+                notesAdapter,
                 settingsHeader,
                 settingsAdapter,
             )
@@ -244,10 +269,12 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             settingsReady &&
             contactsReady &&
             messagesReady &&
+            notesReady &&
             appAdapter.itemCount == 0 &&
             settingsAdapter.itemCount == 0 &&
             contactsAdapter.itemCount == 0 &&
-            messagesAdapter.itemCount == 0
+            messagesAdapter.itemCount == 0 &&
+            notesAdapter.itemCount == 0
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
 
@@ -266,6 +293,19 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
     private fun openContact(item: ContactItem) {
         launchAndFinish(item.viewIntent())
+    }
+
+    private fun openNote(item: NoteItem) {
+        for (intent in item.viewIntents()) {
+            try {
+                startActivity(intent)
+                hideIme()
+                finish()
+                return
+            } catch (_: ActivityNotFoundException) {
+            } catch (_: SecurityException) {
+            }
+        }
     }
 
     private fun openMessage(item: MessageItem) {

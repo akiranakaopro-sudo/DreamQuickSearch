@@ -61,6 +61,19 @@
         <package android:name="com.heytap.mms" />
         <package android:name="com.oneplus.mms" />
         <package android:name="com.oppo.mms" />
+        <intent>
+            <action android:name="action.nearme.note.textnote" />
+        </intent>
+        <package android:name="com.coloros.note" />
+        <package android:name="com.oplus.note" />
+        <package android:name="com.nearme.note" />
+        <package android:name="com.oneplus.note" />
+        <provider android:authorities="com.coloros.note.notesprovider" />
+        <provider android:authorities="com.nearme.note" />
+        <provider android:authorities="com.oplus.note.notesprovider" />
+        <provider android:authorities="com.coloros.note" />
+        <provider android:authorities="com.nearme.note.notesprovider" />
+        <provider android:authorities="com.oplus.note" />
     </queries>
 
     <application

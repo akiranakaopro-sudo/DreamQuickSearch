@@ -9,6 +9,8 @@ import gd.app.quicksearch.search.contacts.ContactItem
 import gd.app.quicksearch.search.contacts.ContactsIndex
 import gd.app.quicksearch.search.messages.MessageItem
 import gd.app.quicksearch.search.messages.MessagesIndex
+import gd.app.quicksearch.search.notes.NoteItem
+import gd.app.quicksearch.search.notes.NotesIndex
 import gd.app.quicksearch.search.settings.SettingItem
 import gd.app.quicksearch.search.settings.SettingsIndex
 import java.util.concurrent.ExecutorService
@@ -20,6 +22,7 @@ class LocalSearch(
     private val settings: SettingsIndex,
     private val contacts: ContactsIndex,
     private val messages: MessagesIndex,
+    private val notes: NotesIndex,
     private val listener: Listener,
 ) {
     interface Listener {
@@ -28,6 +31,7 @@ class LocalSearch(
         fun onSettings(query: String, settings: List<SettingItem>)
         fun onContacts(query: String, contacts: List<ContactItem>)
         fun onMessages(query: String, messages: List<MessageItem>)
+        fun onNotes(query: String, notes: List<NoteItem>)
         fun onCleared()
     }
 
@@ -37,6 +41,7 @@ class LocalSearch(
     private val settingsExecutor = newWorker("settings-search")
     private val contactsExecutor = newWorker("contacts-search")
     private val messagesExecutor = newWorker("messages-search")
+    private val notesExecutor = newWorker("notes-search")
     private val debounce = Runnable { dispatch(pendingQuery) }
     private var pendingQuery = ""
     private var contactsGranted = false
@@ -45,6 +50,7 @@ class LocalSearch(
     fun warm() {
         apps.warm(appsExecutor)
         settings.warm(settingsExecutor)
+        attachNotes()
         contactsGranted = contacts.hasPermission()
         if (contactsGranted) {
             attachContacts()
@@ -117,10 +123,12 @@ class LocalSearch(
         generation.incrementAndGet()
         contacts.clearWatch()
         messages.clearWatch()
+        notes.clearWatch()
         appsExecutor.shutdownNow()
         settingsExecutor.shutdownNow()
         contactsExecutor.shutdownNow()
         messagesExecutor.shutdownNow()
+        notesExecutor.shutdownNow()
     }
 
     private fun attachContacts() {
@@ -147,6 +155,18 @@ class LocalSearch(
         }
     }
 
+    private fun attachNotes() {
+        notes.invalidate()
+        notes.warm(notesExecutor)
+        notes.watch {
+            main.post {
+                if (pendingQuery.isNotBlank()) {
+                    dispatch(pendingQuery)
+                }
+            }
+        }
+    }
+
     private fun dispatch(raw: String) {
         val query = raw.trim()
         val token = generation.incrementAndGet()
@@ -159,6 +179,7 @@ class LocalSearch(
         settingsExecutor.execute { searchSettings(token, query) }
         contactsExecutor.execute { searchContacts(token, query) }
         messagesExecutor.execute { searchMessages(token, query) }
+        notesExecutor.execute { searchNotes(token, query) }
     }
 
     private fun searchApps(token: Int, query: String) {
@@ -213,6 +234,20 @@ class LocalSearch(
         main.post {
             if (token == generation.get()) {
                 listener.onMessages(query, result)
+            }
+        }
+    }
+
+    private fun searchNotes(token: Int, query: String) {
+        if (token != generation.get()) {
+            return
+        }
+        val started = System.nanoTime()
+        val result = notes.search(query)
+        Log.d(TAG, "notes query='$query' hits=${result.size} ${(System.nanoTime() - started) / 1_000_000}ms")
+        main.post {
+            if (token == generation.get()) {
+                listener.onNotes(query, result)
             }
         }
     }
