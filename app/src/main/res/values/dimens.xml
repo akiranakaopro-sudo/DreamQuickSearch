@@ -14,6 +14,7 @@
     <dimen name="search_bar_text_size">16sp</dimen>
     <dimen name="search_bar_action_text_size">14sp</dimen>
     <dimen name="search_home_blur_radius">200dp</dimen>
+    <dimen name="search_bar_results_gap">12dp</dimen>
     <dimen name="search_results_gap">16dp</dimen>
     <dimen name="search_section_title_padding_bottom">8dp</dimen>
     <dimen name="search_app_icon_size">36dp</dimen>

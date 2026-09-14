@@ -4,8 +4,7 @@
     android:id="@+id/search_home_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/transparent"
-    android:clipChildren="false">
+    android:background="@android:color/transparent">
 
     <ImageView
         android:id="@+id/blur_backdrop"
@@ -32,7 +31,6 @@
         android:id="@+id/search_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:clipChildren="false"
         android:orientation="vertical">
 
         <include
@@ -45,15 +43,13 @@
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipChildren="false"
-            android:clipToPadding="false">
+            android:layout_marginTop="@dimen/search_bar_results_gap"
+            android:layout_weight="1">
 
             <gd.app.quicksearch.ui.home.SearchResultsRecyclerView
                 android:id="@+id/search_results"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clipChildren="false"
                 android:clipToPadding="false"
                 android:fadeScrollbars="true"
                 android:overScrollMode="always"

@@ -23,7 +23,7 @@ class SearchResultsRecyclerView @JvmOverloads constructor(
         overScrollMode = View.OVER_SCROLL_ALWAYS
         isNestedScrollingEnabled = false
         clipToPadding = false
-        clipChildren = false
+        clipChildren = true
         setOverScrollEnable(true)
         setEnableVibrator(true)
     }
@@ -41,6 +41,7 @@ class SearchResultsRecyclerView @JvmOverloads constructor(
             return
         }
         val save = canvas.save()
+        canvas.clipRect(0, 0, width, height)
         canvas.translate(dx, dy)
         super.dispatchDraw(canvas)
         canvas.restoreToCount(save)
