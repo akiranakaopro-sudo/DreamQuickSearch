@@ -16,16 +16,19 @@ class SearchNotesAdapter(
 
     private var icon: Drawable? = null
     private val items = ArrayList<NoteItem>()
+    private var query = ""
 
     init {
         setHasStableIds(true)
     }
 
-    fun submit(notes: List<NoteItem>) {
+    fun submit(notes: List<NoteItem>, query: String) {
+        val oldQuery = this.query
         val old = ArrayList(items)
+        this.query = query
         items.clear()
         items.addAll(notes)
-        DiffUtil.calculateDiff(Diff(old, items), false).dispatchUpdatesTo(this)
+        DiffUtil.calculateDiff(Diff(old, items, oldQuery, query), false).dispatchUpdatesTo(this)
         if (items.isNotEmpty()) {
             notifyItemRangeChanged(0, items.size, PAYLOAD_CARD)
         }
@@ -67,8 +70,8 @@ class SearchNotesAdapter(
     private fun bind(holder: COUIBaseListItemViewHolder, position: Int) {
         val note = items[position]
         val item = holder.itemView as COUIBaseListItemView
-        item.setTitle(note.title)
-        item.setSummary(note.body)
+        item.setTitle(SearchCategoryCard.highlighted(item, note.title, query))
+        item.setSummary(SearchCategoryCard.highlighted(item, note.body, query))
         item.setIcon(iconFor(item))
         item.setOnClickListener { onNoteClicked(note) }
         SearchCategoryCard.bindCorners(holder, itemCount, position)
@@ -88,13 +91,15 @@ class SearchNotesAdapter(
     private class Diff(
         private val old: List<NoteItem>,
         private val new: List<NoteItem>,
+        private val oldQuery: String,
+        private val newQuery: String,
     ) : DiffUtil.Callback() {
         override fun getOldListSize(): Int = old.size
         override fun getNewListSize(): Int = new.size
         override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
             old[oldItemPosition].id == new[newItemPosition].id
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-            old[oldItemPosition] == new[newItemPosition]
+            oldQuery == newQuery && old[oldItemPosition] == new[newItemPosition]
     }
 
     companion object {

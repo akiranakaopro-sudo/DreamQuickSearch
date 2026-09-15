@@ -22,4 +22,8 @@ internal object SearchCategoryCard {
     fun bindCorners(holder: COUIBaseListItemViewHolder, itemCount: Int, position: Int) {
         holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
     }
+
+    fun highlighted(item: COUIBaseListItemView, text: CharSequence, query: String): CharSequence {
+        return SearchMatchHighlight.apply(item.context, text, query)
+    }
 }

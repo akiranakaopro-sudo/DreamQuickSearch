@@ -16,6 +16,8 @@ data class MatchKeys(
 
 object SearchText {
 
+    private const val MAX_HIGHLIGHTS = 8
+
     fun needle(query: String): String = query.trim().lowercase(Locale.getDefault())
 
     fun compact(raw: String): String = raw.replace(" ", "").replace("-", "")
@@ -48,6 +50,54 @@ object SearchText {
             keys.keywords.any { it.contains(needle) || compact(it).contains(compactNeedle) } -> 7
             else -> null
         }
+    }
+
+    fun matchRanges(text: CharSequence, query: String): List<IntRange> {
+        val needle = needle(query)
+        if (needle.isEmpty() || text.isEmpty()) {
+            return emptyList()
+        }
+        val lower = text.toString().lowercase(Locale.getDefault())
+        val ranges = ArrayList<IntRange>(2)
+        var from = 0
+        while (ranges.size < MAX_HIGHLIGHTS) {
+            val start = lower.indexOf(needle, from)
+            if (start < 0) {
+                break
+            }
+            ranges += start until (start + needle.length)
+            from = start + needle.length
+        }
+        if (ranges.isNotEmpty()) {
+            return ranges
+        }
+        val compactNeedle = compact(needle)
+        if (compactNeedle.length < 2) {
+            return emptyList()
+        }
+        return compactMatch(lower, compactNeedle)
+    }
+
+    private fun compactMatch(lower: String, compactNeedle: String): List<IntRange> {
+        val compact = StringBuilder(lower.length)
+        val origin = IntArray(lower.length)
+        var n = 0
+        for (i in lower.indices) {
+            val ch = lower[i]
+            if (ch == ' ' || ch == '-') {
+                continue
+            }
+            origin[n] = i
+            compact.append(ch)
+            n++
+        }
+        val at = compact.toString().indexOf(compactNeedle)
+        if (at < 0) {
+            return emptyList()
+        }
+        val start = origin[at]
+        val end = origin[at + compactNeedle.length - 1] + 1
+        return listOf(start until end)
     }
 
     private object HanLatin {

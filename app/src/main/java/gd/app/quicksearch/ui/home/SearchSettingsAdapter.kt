@@ -18,16 +18,19 @@ class SearchSettingsAdapter(
 
     private val icons = LruCache<String, Drawable>(64)
     private val items = ArrayList<SettingItem>()
+    private var query = ""
 
     init {
         setHasStableIds(true)
     }
 
-    fun submit(settings: List<SettingItem>) {
+    fun submit(settings: List<SettingItem>, query: String) {
+        val oldQuery = this.query
         val old = ArrayList(items)
+        this.query = query
         items.clear()
         items.addAll(settings)
-        DiffUtil.calculateDiff(Diff(old, items), false).dispatchUpdatesTo(this)
+        DiffUtil.calculateDiff(Diff(old, items, oldQuery, query), false).dispatchUpdatesTo(this)
         if (items.isNotEmpty()) {
             notifyItemRangeChanged(0, items.size, PAYLOAD_CARD)
         }
@@ -69,7 +72,7 @@ class SearchSettingsAdapter(
     private fun bind(holder: COUIBaseListItemViewHolder, position: Int) {
         val setting = items[position]
         val item = holder.itemView as COUIBaseListItemView
-        item.setTitle(setting.label)
+        item.setTitle(SearchCategoryCard.highlighted(item, setting.label, query))
         item.setIcon(iconFor(item, setting))
         item.setOnClickListener { onSettingClicked(setting) }
         SearchCategoryCard.bindCorners(holder, itemCount, position)
@@ -101,13 +104,15 @@ class SearchSettingsAdapter(
     private class Diff(
         private val old: List<SettingItem>,
         private val new: List<SettingItem>,
+        private val oldQuery: String,
+        private val newQuery: String,
     ) : DiffUtil.Callback() {
         override fun getOldListSize(): Int = old.size
         override fun getNewListSize(): Int = new.size
         override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
             old[oldItemPosition].id == new[newItemPosition].id
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-            old[oldItemPosition] == new[newItemPosition]
+            oldQuery == newQuery && old[oldItemPosition] == new[newItemPosition]
     }
 
     companion object {

@@ -20,4 +20,6 @@
     <color name="search_category_card_pressed">#3DFFFFFF</color>
     <color name="search_category_title">#D9FFFFFF</color>
     <color name="search_category_summary">#8CFFFFFF</color>
+    <!-- ColorOS night color_dark_round_span. -->
+    <color name="search_match_highlight">#26FFFFFF</color>
 </resources>

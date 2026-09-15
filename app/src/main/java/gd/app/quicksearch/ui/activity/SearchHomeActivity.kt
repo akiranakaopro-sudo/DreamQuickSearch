@@ -147,13 +147,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         notesReady = false
         calendarReady = false
         filesReady = false
-        appAdapter.submit(emptyList())
-        settingsAdapter.submit(emptyList())
-        contactsAdapter.submit(emptyList())
-        messagesAdapter.submit(emptyList())
-        notesAdapter.submit(emptyList())
-        calendarAdapter.submit(emptyList())
-        filesAdapter.submit(emptyList())
+        appAdapter.submit(emptyList(), query)
+        settingsAdapter.submit(emptyList(), query)
+        contactsAdapter.submit(emptyList(), query)
+        messagesAdapter.submit(emptyList(), query)
+        notesAdapter.submit(emptyList(), query)
+        calendarAdapter.submit(emptyList(), query)
+        filesAdapter.submit(emptyList(), query)
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
@@ -169,7 +169,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         appsReady = true
-        appAdapter.submit(apps)
+        appAdapter.submit(apps, query)
         bindSection(appsHeader, R.string.search_section_apps, apps.isNotEmpty())
         updateEmptyState(query)
     }
@@ -179,7 +179,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         settingsReady = true
-        settingsAdapter.submit(settings)
+        settingsAdapter.submit(settings, query)
         bindSection(settingsHeader, R.string.search_section_settings, settings.isNotEmpty())
         updateEmptyState(query)
     }
@@ -189,7 +189,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         contactsReady = true
-        contactsAdapter.submit(contacts)
+        contactsAdapter.submit(contacts, query)
         bindSection(contactsHeader, R.string.search_section_contacts, contacts.isNotEmpty())
         updateEmptyState(query)
     }
@@ -199,7 +199,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         messagesReady = true
-        messagesAdapter.submit(messages)
+        messagesAdapter.submit(messages, query)
         bindSection(messagesHeader, R.string.search_section_messages, messages.isNotEmpty())
         updateEmptyState(query)
     }
@@ -209,7 +209,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         notesReady = true
-        notesAdapter.submit(notes)
+        notesAdapter.submit(notes, query)
         bindSection(notesHeader, R.string.search_section_notes, notes.isNotEmpty())
         updateEmptyState(query)
     }
@@ -219,7 +219,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         calendarReady = true
-        calendarAdapter.submit(events)
+        calendarAdapter.submit(events, query)
         bindSection(calendarHeader, R.string.search_section_calendar, events.isNotEmpty())
         updateEmptyState(query)
     }
@@ -229,7 +229,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         filesReady = true
-        filesAdapter.submit(files)
+        filesAdapter.submit(files, query)
         bindSection(filesHeader, R.string.search_section_files, files.isNotEmpty())
         updateEmptyState(query)
     }
@@ -245,13 +245,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         notesReady = true
         calendarReady = true
         filesReady = true
-        appAdapter.submit(emptyList())
-        settingsAdapter.submit(emptyList())
-        contactsAdapter.submit(emptyList())
-        messagesAdapter.submit(emptyList())
-        notesAdapter.submit(emptyList())
-        calendarAdapter.submit(emptyList())
-        filesAdapter.submit(emptyList())
+        appAdapter.submit(emptyList(), "")
+        settingsAdapter.submit(emptyList(), "")
+        contactsAdapter.submit(emptyList(), "")
+        messagesAdapter.submit(emptyList(), "")
+        notesAdapter.submit(emptyList(), "")
+        calendarAdapter.submit(emptyList(), "")
+        filesAdapter.submit(emptyList(), "")
         appsHeader.hide()
         settingsHeader.hide()
         contactsHeader.hide()
