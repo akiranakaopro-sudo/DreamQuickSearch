@@ -9,7 +9,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import com.coui.appcompat.cardlist.COUICardListHelper
 import com.coui.appcompat.itemview.COUIBaseListItemView
 import com.coui.appcompat.itemview.COUIBaseListItemViewHolder
 import gd.app.quicksearch.R
@@ -49,6 +48,7 @@ class SearchContactsAdapter(
             height = iconSize
         }
         item.setIconStyle(COUIBaseListItemView.CIRCLE)
+        SearchCategoryCard.style(item)
         return COUIBaseListItemViewHolder(item)
     }
 
@@ -62,7 +62,7 @@ class SearchContactsAdapter(
         payloads: MutableList<Any>,
     ) {
         if (payloads.size == 1 && payloads[0] == PAYLOAD_CARD) {
-            holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
+            SearchCategoryCard.bindCorners(holder, itemCount, position)
             return
         }
         bind(holder, position)
@@ -75,7 +75,7 @@ class SearchContactsAdapter(
         item.setSummary(contact.phone)
         item.setIcon(iconFor(item, contact))
         item.setOnClickListener { onContactClicked(contact) }
-        holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
+        SearchCategoryCard.bindCorners(holder, itemCount, position)
     }
 
     private fun iconFor(item: COUIBaseListItemView, contact: ContactItem): Drawable? {

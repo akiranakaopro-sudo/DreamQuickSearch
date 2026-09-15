@@ -15,4 +15,9 @@
     <color name="search_bar_action_fill">#FFFFFFFF</color>
     <color name="search_bar_action_text">#FFFFFFFF</color>
     <color name="search_bar_ripple">#1FFFFFFF</color>
+    <!-- ColorOS home_card_bg overlay: 15% white (0x26FFFFFF). -->
+    <color name="search_category_card">#26FFFFFF</color>
+    <color name="search_category_card_pressed">#3DFFFFFF</color>
+    <color name="search_category_title">#D9FFFFFF</color>
+    <color name="search_category_summary">#8CFFFFFF</color>
 </resources>

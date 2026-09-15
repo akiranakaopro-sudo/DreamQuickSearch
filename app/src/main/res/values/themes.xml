@@ -15,5 +15,8 @@
         <item name="android:windowShowWallpaper">true</item>
         <item name="viewInflaterClass">com.coui.appcompat.theme.COUIComponentsViewInflater</item>
         <item name="couiSearchBarStyle">@style/Widget.COUI.COUISearchBar</item>
+        <item name="couiColorCard">@color/search_category_card</item>
+        <item name="couiColorCardBackground">@color/search_category_card</item>
+        <item name="couiColorCardPressed">@color/search_category_card_pressed</item>
     </style>
 </resources>

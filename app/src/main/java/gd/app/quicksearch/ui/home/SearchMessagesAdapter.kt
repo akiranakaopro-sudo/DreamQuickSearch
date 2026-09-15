@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import com.coui.appcompat.cardlist.COUICardListHelper
 import com.coui.appcompat.itemview.COUIBaseListItemView
 import com.coui.appcompat.itemview.COUIBaseListItemViewHolder
 import gd.app.quicksearch.R
@@ -45,6 +44,7 @@ class SearchMessagesAdapter(
             height = iconSize
         }
         item.setIconStyle(COUIBaseListItemView.ROUND)
+        SearchCategoryCard.style(item)
         return COUIBaseListItemViewHolder(item)
     }
 
@@ -58,7 +58,7 @@ class SearchMessagesAdapter(
         payloads: MutableList<Any>,
     ) {
         if (payloads.size == 1 && payloads[0] == PAYLOAD_CARD) {
-            holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
+            SearchCategoryCard.bindCorners(holder, itemCount, position)
             return
         }
         bind(holder, position)
@@ -71,7 +71,7 @@ class SearchMessagesAdapter(
         item.setSummary(message.body)
         item.setIcon(iconFor(item))
         item.setOnClickListener { onMessageClicked(message) }
-        holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
+        SearchCategoryCard.bindCorners(holder, itemCount, position)
     }
 
     private fun iconFor(item: COUIBaseListItemView): Drawable? {

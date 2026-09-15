@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import com.coui.appcompat.cardlist.COUICardListHelper
 import com.coui.appcompat.itemview.COUIBaseListItemView
 import com.coui.appcompat.itemview.COUIBaseListItemViewHolder
 import gd.app.quicksearch.R
@@ -47,6 +46,7 @@ class SearchAppAdapter(
             height = iconSize
         }
         item.setIconStyle(COUIBaseListItemView.ROUND)
+        SearchCategoryCard.style(item)
         return COUIBaseListItemViewHolder(item)
     }
 
@@ -60,7 +60,7 @@ class SearchAppAdapter(
         payloads: MutableList<Any>,
     ) {
         if (payloads.size == 1 && payloads[0] == PAYLOAD_CARD) {
-            holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
+            SearchCategoryCard.bindCorners(holder, itemCount, position)
             return
         }
         bind(holder, position, fullBind = true)
@@ -74,7 +74,7 @@ class SearchAppAdapter(
             item.setIcon(iconFor(item, app.component))
             item.setOnClickListener { onAppClicked(app) }
         }
-        holder.setCornerType(COUICardListHelper.getPositionInGroup(itemCount, position))
+        SearchCategoryCard.bindCorners(holder, itemCount, position)
     }
 
     private fun iconFor(item: COUIBaseListItemView, component: ComponentName): Drawable? {
