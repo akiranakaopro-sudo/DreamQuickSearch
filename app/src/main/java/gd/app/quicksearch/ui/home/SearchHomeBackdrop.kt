@@ -13,36 +13,37 @@ import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
 import androidx.core.view.doOnAttach
 import androidx.core.view.doOnLayout
 import com.oplus.graphics.OplusBlurParam
 import com.oplus.view.ViewRootManager
 import gd.app.quicksearch.R
-import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
 import java.lang.reflect.Method
 
 class SearchHomeBackdrop(
     private val activity: Activity,
-    private val binding: ActivitySearchHomeBinding,
+    private val backdropView: ImageView,
+    private val blurLayer: View,
 ) {
     private var blurDrawable: Drawable? = null
 
     fun apply() {
         showSystemWallpaper()
-        binding.blurLayer.doOnAttach { view ->
+        blurLayer.doOnAttach { view ->
             view.post { frostWallpaperInCompositor(view) }
         }
-        binding.blurBackdrop.doOnLayout {
+        backdropView.doOnLayout {
             frostWallpaperBitmap()
         }
     }
 
     fun release() {
         blurDrawable = null
-        binding.blurLayer.background = null
-        binding.blurBackdrop.setImageDrawable(null)
+        blurLayer.background = null
+        backdropView.setImageDrawable(null)
         if (Build.VERSION.SDK_INT >= 31) {
-            binding.blurBackdrop.setRenderEffect(null)
+            backdropView.setRenderEffect(null)
         }
     }
 
@@ -90,13 +91,13 @@ class SearchHomeBackdrop(
     private fun frostWallpaperBitmap() {
         val bitmap = loadWallpaperBitmap()?.takeIf { it.hasVisibleColor() }
         if (bitmap == null) {
-            binding.blurBackdrop.setImageDrawable(null)
+            backdropView.setImageDrawable(null)
             return
         }
-        binding.blurBackdrop.setImageBitmap(bitmap)
-        binding.blurBackdrop.visibility = View.VISIBLE
+        backdropView.setImageBitmap(bitmap)
+        backdropView.visibility = View.VISIBLE
         if (Build.VERSION.SDK_INT >= 31) {
-            binding.blurBackdrop.setRenderEffect(
+            backdropView.setRenderEffect(
                 RenderEffect.createBlurEffect(
                     WALLPAPER_BLUR_RADIUS_PX,
                     WALLPAPER_BLUR_RADIUS_PX,
@@ -134,10 +135,10 @@ class SearchHomeBackdrop(
             return scaleForBlur(drawable.bitmap)
         }
         val width = drawable.intrinsicWidth.takeIf { it > 0 }
-            ?: binding.blurBackdrop.width.takeIf { it > 0 }
+            ?: backdropView.width.takeIf { it > 0 }
             ?: return null
         val height = drawable.intrinsicHeight.takeIf { it > 0 }
-            ?: binding.blurBackdrop.height.takeIf { it > 0 }
+            ?: backdropView.height.takeIf { it > 0 }
             ?: return null
         val sample = sampleSize(width, height)
         val bitmap = Bitmap.createBitmap(

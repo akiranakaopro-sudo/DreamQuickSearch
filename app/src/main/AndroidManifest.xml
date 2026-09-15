@@ -143,5 +143,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.activity.SearchCategoryActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.activity.SearchHomeActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden" />
     </application>
 </manifest>

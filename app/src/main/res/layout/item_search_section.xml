@@ -1,10 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/section_title"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="@dimen/search_results_gap"
+    android:baselineAligned="false"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
     android:paddingHorizontal="@dimen/coui_preference_card_margin_horizontal"
-    android:paddingBottom="@dimen/search_section_title_padding_bottom"
-    android:textAppearance="?attr/couiTextAppearanceSmallButton"
-    android:textColor="@color/search_bar_text" />
+    android:paddingBottom="@dimen/search_section_title_padding_bottom">
+
+    <TextView
+        android:id="@+id/section_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textAppearance="?attr/couiTextAppearanceSmallButton"
+        android:textColor="@color/search_bar_text" />
+
+    <TextView
+        android:id="@+id/section_more"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_search_more"
+        android:clickable="true"
+        android:drawableEnd="@drawable/ic_section_more"
+        android:drawablePadding="2dp"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:includeFontPadding="false"
+        android:paddingHorizontal="@dimen/search_section_more_padding_horizontal"
+        android:paddingVertical="@dimen/search_section_more_padding_vertical"
+        android:text="@string/search_more"
+        android:textAppearance="?attr/couiTextAppearanceSmallButton"
+        android:textColor="@color/search_category_summary"
+        android:visibility="gone" />
+</LinearLayout>

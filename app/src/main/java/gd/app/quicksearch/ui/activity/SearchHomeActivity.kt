@@ -1,7 +1,6 @@
 package gd.app.quicksearch.ui.activity
 
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -27,6 +26,7 @@ import gd.app.quicksearch.QsbApplicationWrapper
 import gd.app.quicksearch.R
 import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
 import gd.app.quicksearch.search.LocalSearch
+import gd.app.quicksearch.search.SearchCategory
 import gd.app.quicksearch.search.apps.InstalledApp
 import gd.app.quicksearch.search.calendar.CalendarItem
 import gd.app.quicksearch.search.contacts.ContactItem
@@ -74,6 +74,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var askedSensitivePermissions = false
     private var suppressQueryDispatch = false
     private var resultsAtTop = true
+    private var currentQuery = ""
+    private val launcher = SearchLauncher(this) { localSearch.refreshApps() }
 
     private val requestSensitivePermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -105,7 +107,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         binding = ActivitySearchHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        backdrop = SearchHomeBackdrop(this, binding).also { it.apply() }
+        backdrop = SearchHomeBackdrop(this, binding.blurBackdrop, binding.blurLayer).also { it.apply() }
         setupResults()
         setupSearch()
         insetContent()
@@ -143,6 +145,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        currentQuery = query
         appsReady = false
         settingsReady = false
         contactsReady = false
@@ -173,8 +176,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         appsReady = true
-        appAdapter.submit(apps, query)
-        bindSection(appsHeader, R.string.search_section_apps, apps.isNotEmpty())
+        appAdapter.submit(collapse(apps), query)
+        bindSection(appsHeader, R.string.search_section_apps, apps.size)
         updateEmptyState(query)
     }
 
@@ -183,8 +186,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         settingsReady = true
-        settingsAdapter.submit(settings, query)
-        bindSection(settingsHeader, R.string.search_section_settings, settings.isNotEmpty())
+        settingsAdapter.submit(collapse(settings), query)
+        bindSection(settingsHeader, R.string.search_section_settings, settings.size)
         updateEmptyState(query)
     }
 
@@ -193,8 +196,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         contactsReady = true
-        contactsAdapter.submit(contacts, query)
-        bindSection(contactsHeader, R.string.search_section_contacts, contacts.isNotEmpty())
+        contactsAdapter.submit(collapse(contacts), query)
+        bindSection(contactsHeader, R.string.search_section_contacts, contacts.size)
         updateEmptyState(query)
     }
 
@@ -203,8 +206,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         messagesReady = true
-        messagesAdapter.submit(messages, query)
-        bindSection(messagesHeader, R.string.search_section_messages, messages.isNotEmpty())
+        messagesAdapter.submit(collapse(messages), query)
+        bindSection(messagesHeader, R.string.search_section_messages, messages.size)
         updateEmptyState(query)
     }
 
@@ -213,8 +216,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         notesReady = true
-        notesAdapter.submit(notes, query)
-        bindSection(notesHeader, R.string.search_section_notes, notes.isNotEmpty())
+        notesAdapter.submit(collapse(notes), query)
+        bindSection(notesHeader, R.string.search_section_notes, notes.size)
         updateEmptyState(query)
     }
 
@@ -223,8 +226,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         calendarReady = true
-        calendarAdapter.submit(events, query)
-        bindSection(calendarHeader, R.string.search_section_calendar, events.isNotEmpty())
+        calendarAdapter.submit(collapse(events), query)
+        bindSection(calendarHeader, R.string.search_section_calendar, events.size)
         updateEmptyState(query)
     }
 
@@ -233,8 +236,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         filesReady = true
-        filesAdapter.submit(files, query)
-        bindSection(filesHeader, R.string.search_section_files, files.isNotEmpty())
+        filesAdapter.submit(collapse(files), query)
+        bindSection(filesHeader, R.string.search_section_files, files.size)
         updateEmptyState(query)
     }
 
@@ -242,6 +245,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        currentQuery = ""
         appsReady = true
         settingsReady = true
         contactsReady = true
@@ -268,20 +272,24 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     }
 
     private fun setupResults() {
-        appsHeader = SectionHeaderAdapter()
-        contactsHeader = SectionHeaderAdapter()
-        messagesHeader = SectionHeaderAdapter()
-        notesHeader = SectionHeaderAdapter()
-        calendarHeader = SectionHeaderAdapter()
-        filesHeader = SectionHeaderAdapter()
-        settingsHeader = SectionHeaderAdapter()
-        appAdapter = SearchAppAdapter(::openApp)
-        contactsAdapter = SearchContactsAdapter(::openContact, ::callContact, ::messageContact)
-        messagesAdapter = SearchMessagesAdapter(::openMessage)
-        notesAdapter = SearchNotesAdapter(::openNote)
-        calendarAdapter = SearchCalendarAdapter(::openCalendar)
-        filesAdapter = SearchFilesAdapter(::openFile)
-        settingsAdapter = SearchSettingsAdapter(::openSetting)
+        appsHeader = SectionHeaderAdapter { openCategory(SearchCategory.APPS) }
+        contactsHeader = SectionHeaderAdapter { openCategory(SearchCategory.CONTACTS) }
+        messagesHeader = SectionHeaderAdapter { openCategory(SearchCategory.MESSAGES) }
+        notesHeader = SectionHeaderAdapter { openCategory(SearchCategory.NOTES) }
+        calendarHeader = SectionHeaderAdapter { openCategory(SearchCategory.CALENDAR) }
+        filesHeader = SectionHeaderAdapter { openCategory(SearchCategory.FILES) }
+        settingsHeader = SectionHeaderAdapter { openCategory(SearchCategory.SETTINGS) }
+        appAdapter = SearchAppAdapter(launcher::openApp)
+        contactsAdapter = SearchContactsAdapter(
+            launcher::openContact,
+            launcher::callContact,
+            launcher::messageContact,
+        )
+        messagesAdapter = SearchMessagesAdapter(launcher::openMessage)
+        notesAdapter = SearchNotesAdapter(launcher::openNote)
+        calendarAdapter = SearchCalendarAdapter(launcher::openCalendar)
+        filesAdapter = SearchFilesAdapter(launcher::openFile)
+        settingsAdapter = SearchSettingsAdapter(launcher::openSetting)
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
             adapter = ConcatAdapter(
@@ -365,12 +373,20 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
     }
 
-    private fun bindSection(header: SectionHeaderAdapter, titleRes: Int, visible: Boolean) {
-        if (visible) {
-            header.show(getString(titleRes))
+    private fun bindSection(header: SectionHeaderAdapter, titleRes: Int, total: Int) {
+        if (total > 0) {
+            header.show(getString(titleRes), total > SearchCategory.COLLAPSED_COUNT)
         } else {
             header.hide()
         }
+    }
+
+    private fun openCategory(category: SearchCategory) {
+        if (currentQuery.isEmpty()) {
+            return
+        }
+        hideIme()
+        startActivity(SearchCategoryActivity.intent(this, category, currentQuery))
     }
 
     private fun updateEmptyState(query: String) {
@@ -392,85 +408,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
     }
 
-    private fun openApp(app: InstalledApp) {
-        val launch = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
-            .setComponent(app.component)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-        launchAndFinish(launch)
-    }
-
-    private fun openSetting(item: SettingItem) {
-        val launch = item.launchIntent() ?: return
-        launchAndFinish(launch)
-    }
-
-    private fun openContact(item: ContactItem) {
-        launchAndFinish(item.viewIntent())
-    }
-
-    private fun callContact(item: ContactItem) {
-        val intent = item.callIntent() ?: return
-        launchAndFinish(intent)
-    }
-
-    private fun messageContact(item: ContactItem) {
-        val intent = item.messageIntent() ?: return
-        launchAndFinish(intent)
-    }
-
-    private fun openFile(item: FileItem) {
-        launchAndFinish(item.viewIntent())
-    }
-
-    private fun openNote(item: NoteItem) {
-        for (intent in item.viewIntents()) {
-            try {
-                startActivity(intent)
-                hideIme()
-                finish()
-                return
-            } catch (_: ActivityNotFoundException) {
-            } catch (_: SecurityException) {
-            }
+    /** Inline sections stay short; the rest is one tap away behind "More". */
+    private fun <T> collapse(items: List<T>): List<T> =
+        if (items.size <= SearchCategory.COLLAPSED_COUNT) {
+            items
+        } else {
+            items.subList(0, SearchCategory.COLLAPSED_COUNT)
         }
-    }
-
-    private fun openCalendar(item: CalendarItem) {
-        for (intent in item.viewIntents()) {
-            try {
-                startActivity(intent)
-                hideIme()
-                finish()
-                return
-            } catch (_: ActivityNotFoundException) {
-            } catch (_: SecurityException) {
-            }
-        }
-    }
-
-    private fun openMessage(item: MessageItem) {
-        for (intent in item.conversationIntents(this)) {
-            try {
-                startActivity(intent)
-                hideIme()
-                finish()
-                return
-            } catch (_: ActivityNotFoundException) {
-            } catch (_: SecurityException) {
-            }
-        }
-    }
-
-    private fun launchAndFinish(intent: Intent) {
-        try {
-            startActivity(intent)
-            hideIme()
-            finish()
-        } catch (_: ActivityNotFoundException) {
-            localSearch.refreshApps()
-        }
-    }
 
     private fun maybeAskSensitivePermissions() {
         if (askedSensitivePermissions) {
