@@ -1,10 +1,11 @@
 package gd.app.quicksearch.ui.home
 
-import android.graphics.BitmapFactory
-import android.graphics.drawable.BitmapDrawable
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.graphics.drawable.Drawable
-import android.net.Uri
-import android.util.LruCache
+import android.os.Build
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -18,7 +19,7 @@ class SearchContactsAdapter(
     private val onContactClicked: (ContactItem) -> Unit,
 ) : RecyclerView.Adapter<COUIBaseListItemViewHolder>() {
 
-    private val icons = LruCache<Long, Drawable>(64)
+    private var icon: Drawable? = null
     private val items = ArrayList<ContactItem>()
     private var query = ""
 
@@ -50,7 +51,7 @@ class SearchContactsAdapter(
             width = iconSize
             height = iconSize
         }
-        item.setIconStyle(COUIBaseListItemView.CIRCLE)
+        item.setIconStyle(COUIBaseListItemView.ROUND)
         SearchCategoryCard.style(item)
         return COUIBaseListItemViewHolder(item)
     }
@@ -76,37 +77,93 @@ class SearchContactsAdapter(
         val item = holder.itemView as COUIBaseListItemView
         item.setTitle(SearchCategoryCard.highlighted(item, contact.name, query))
         item.setSummary(SearchCategoryCard.highlighted(item, contact.phone.orEmpty(), query))
-        item.setIcon(iconFor(item, contact))
+        item.setIcon(iconFor(item))
         item.setOnClickListener { onContactClicked(contact) }
         SearchCategoryCard.bindCorners(holder, itemCount, position)
     }
 
-    private fun iconFor(item: COUIBaseListItemView, contact: ContactItem): Drawable? {
-        icons.get(contact.id)?.let { return it }
-        val icon = loadPhoto(item, contact.photoUri) ?: defaultIcon(item)
-        if (icon != null) {
-            icons.put(contact.id, icon)
-        }
-        return icon
-    }
-
-    private fun loadPhoto(item: COUIBaseListItemView, photoUri: String?): Drawable? {
-        if (photoUri.isNullOrEmpty()) {
-            return null
-        }
-        return runCatching {
-            item.context.contentResolver.openInputStream(Uri.parse(photoUri))?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
-        }.getOrNull()?.let { BitmapDrawable(item.resources, it) }
-    }
-
-    private fun defaultIcon(item: COUIBaseListItemView): Drawable? {
+    private fun iconFor(item: COUIBaseListItemView): Drawable? {
+        icon?.let { return it }
+        val launcher = contactsLauncher(item.context.packageManager) ?: return null
         val pm = item.context.packageManager
+        val component = ComponentName(launcher.activityInfo.packageName, launcher.activityInfo.name)
+        val loaded = runCatching { pm.getActivityIcon(component) }.getOrNull()
+            ?: launcher.loadIcon(pm)
+        icon = loaded
+        return loaded
+    }
+
+    private fun contactsLauncher(pm: PackageManager): ResolveInfo? {
+        val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         for (pkg in CONTACT_PACKAGES) {
-            runCatching { pm.getApplicationIcon(pkg) }.getOrNull()?.let { return it }
+            pickContactsLauncher(pm, Intent(launch).setPackage(pkg))?.let { return it }
         }
-        return null
+        return pickContactsLauncher(pm, launch)
+    }
+
+    private fun pickContactsLauncher(pm: PackageManager, intent: Intent): ResolveInfo? {
+        var best: ResolveInfo? = null
+        var bestScore = 0
+        for (info in queryActivities(pm, intent)) {
+            val score = contactsLauncherScore(info, pm)
+            if (score > bestScore) {
+                bestScore = score
+                best = info
+            }
+        }
+        return best
+    }
+
+    private fun queryActivities(pm: PackageManager, intent: Intent): List<ResolveInfo> {
+        return if (Build.VERSION.SDK_INT >= 33) {
+            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentActivities(intent, 0)
+        }
+    }
+
+    private fun contactsLauncherScore(info: ResolveInfo, pm: PackageManager): Int {
+        val pkg = info.activityInfo?.packageName.orEmpty().lowercase()
+        val cls = info.activityInfo?.name.orEmpty().lowercase()
+        val label = info.loadLabel(pm)?.toString().orEmpty().lowercase()
+        if (isPhoneLauncher(cls, label)) {
+            return 0
+        }
+        var score = 0
+        if (pkg.contains("contacts")) score += 4
+        if (cls.contains("people") || cls.contains("contacts")) score += 3
+        if (isContactsLabel(label)) score += 5
+        return score
+    }
+
+    private fun isPhoneLauncher(cls: String, label: String): Boolean {
+        if (cls.contains("dialtact") ||
+            cls.contains(".dial.") ||
+            cls.contains("dialactivity") ||
+            cls.contains("incall")
+        ) {
+            return true
+        }
+        return isPhoneLabel(label) && !isContactsLabel(label)
+    }
+
+    private fun isContactsLabel(label: String): Boolean {
+        return label.contains("contact") ||
+            label.contains("people") ||
+            label.contains("联系人") ||
+            label.contains("通讯录") ||
+            label.contains("聯絡人")
+    }
+
+    private fun isPhoneLabel(label: String): Boolean {
+        return label.contains("phone") ||
+            label.contains("dial") ||
+            label.contains("call") ||
+            label.contains("电话") ||
+            label.contains("電話") ||
+            label.contains("拨号") ||
+            label.contains("撥號")
     }
 
     private class Diff(
@@ -128,7 +185,10 @@ class SearchContactsAdapter(
         private val CONTACT_PACKAGES = arrayOf(
             "com.android.contacts",
             "com.google.android.contacts",
+            "com.mediatek.contacts",
+            "com.android.dialer",
             "com.oplus.contacts",
+            "com.coloros.contacts",
         )
     }
 }

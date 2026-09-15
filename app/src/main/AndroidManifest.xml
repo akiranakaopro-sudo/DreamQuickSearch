@@ -31,7 +31,10 @@
         </intent>
         <package android:name="com.android.contacts" />
         <package android:name="com.google.android.contacts" />
+        <package android:name="com.mediatek.contacts" />
+        <package android:name="com.android.dialer" />
         <package android:name="com.oplus.contacts" />
+        <package android:name="com.coloros.contacts" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="sms" />
