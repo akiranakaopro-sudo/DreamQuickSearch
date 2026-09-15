@@ -73,6 +73,13 @@ class SearchSettingsAdapter(
         val setting = items[position]
         val item = holder.itemView as COUIBaseListItemView
         item.setTitle(SearchCategoryCard.highlighted(item, setting.label, query))
+        item.setSummary(
+            if (setting.path.isEmpty()) {
+                ""
+            } else {
+                SearchCategoryCard.highlighted(item, setting.path, query)
+            },
+        )
         item.setIcon(iconFor(item, setting))
         item.setOnClickListener { onSettingClicked(setting) }
         SearchCategoryCard.bindCorners(holder, itemCount, position)

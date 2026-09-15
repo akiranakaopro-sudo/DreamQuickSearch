@@ -73,11 +73,12 @@ class SettingsIndex(context: Context) {
 
     private fun loadLocked(): List<SettingItem> {
         val started = System.nanoTime()
+        val settingsLabel = genericSettingsLabel(appContext.packageManager)
         val merged = LinkedHashMap<String, SettingItem>()
-        for (item in loadFromProviders()) {
+        for (item in loadFromProviders(settingsLabel)) {
             merged.putIfAbsent(mergeKey(item), item)
         }
-        for (item in loadFromCatalog()) {
+        for (item in loadFromCatalog(settingsLabel)) {
             merged.putIfAbsent(mergeKey(item), item)
         }
         val items = merged.values.toMutableList()
@@ -90,7 +91,7 @@ class SettingsIndex(context: Context) {
         return item.action?.takeIf { it.isNotEmpty() } ?: item.id
     }
 
-    private fun loadFromProviders(): List<SettingItem> {
+    private fun loadFromProviders(settingsLabel: String): List<SettingItem> {
         val items = ArrayList<SettingItem>()
         val seen = HashSet<String>()
         for (authority in PROVIDER_AUTHORITIES) {
@@ -98,6 +99,7 @@ class SettingsIndex(context: Context) {
             val cursor = runCatching {
                 appContext.contentResolver.query(uri, null, null, null, null)
             }.getOrNull() ?: continue
+            val siteMap = loadSiteMap(authority)
             cursor.use { rows ->
                 val titleIdx = rows.getColumnIndex(COL_TITLE)
                 if (titleIdx < 0) {
@@ -110,6 +112,8 @@ class SettingsIndex(context: Context) {
                 val classIdx = rows.getColumnIndex(COL_INTENT_TARGET_CLASS)
                 val iconIdx = rows.getColumnIndex(COL_ICON_RESID)
                 val screenIdx = rows.getColumnIndex(COL_SCREEN_TITLE)
+                val classNameIdx = rows.getColumnIndex(COL_CLASS_NAME)
+                val pathIdx = rows.getColumnIndex(COL_PATH)
                 while (rows.moveToNext()) {
                     val title = rows.stringAt(titleIdx)?.trim().orEmpty()
                     if (title.isEmpty()) {
@@ -130,12 +134,20 @@ class SettingsIndex(context: Context) {
                     if (!seen.add(id)) {
                         continue
                     }
-                    val keywords = listOfNotNull(rows.stringAt(keywordsIdx), rows.stringAt(screenIdx))
+                    val path = settingPath(
+                        settingsLabel,
+                        rawPath = rows.stringAt(pathIdx),
+                        className = rows.stringAt(classNameIdx),
+                        screenTitle = rows.stringAt(screenIdx),
+                        siteMap = siteMap,
+                    )
+                    val keywords = listOfNotNull(rows.stringAt(keywordsIdx), path)
                         .filter { it.isNotBlank() }
                         .joinToString(",")
                     items += SettingItem(
                         id = id,
                         label = title,
+                        path = path,
                         action = action,
                         targetPackage = targetPackage,
                         targetClass = targetClass,
@@ -160,9 +172,8 @@ class SettingsIndex(context: Context) {
         return getString(index)
     }
 
-    private fun loadFromCatalog(): List<SettingItem> {
+    private fun loadFromCatalog(settingsLabel: String): List<SettingItem> {
         val pm = appContext.packageManager
-        val genericLabel = genericSettingsLabel(pm)
         val items = ArrayList<SettingItem>(CATALOG.size)
         for (spec in CATALOG) {
             if (Build.VERSION.SDK_INT < spec.minSdk) {
@@ -172,15 +183,21 @@ class SettingsIndex(context: Context) {
             val resolved = resolve(pm, intent) ?: continue
             val activity = resolved.activityInfo ?: continue
             val resolvedLabel = resolved.loadLabel(pm)?.toString()?.trim().orEmpty()
-            val label = if (resolvedLabel.isNotEmpty() && !resolvedLabel.equals(genericLabel, ignoreCase = true)) {
+            val label = if (resolvedLabel.isNotEmpty() && !resolvedLabel.equals(settingsLabel, ignoreCase = true)) {
                 resolvedLabel
             } else {
                 appContext.getString(spec.labelRes)
             }
-            val keywords = if (spec.keywordsRes != 0) appContext.getString(spec.keywordsRes) else ""
+            val parent = if (spec.pathParentRes != 0) appContext.getString(spec.pathParentRes) else ""
+            val path = joinPath(settingsLabel, parent, label)
+            val keywords = listOf(
+                if (spec.keywordsRes != 0) appContext.getString(spec.keywordsRes) else "",
+                path,
+            ).filter { it.isNotBlank() }.joinToString(",")
             items += SettingItem(
                 id = spec.action,
                 label = label,
+                path = path,
                 action = spec.action,
                 targetPackage = activity.packageName,
                 targetClass = null,
@@ -190,6 +207,79 @@ class SettingsIndex(context: Context) {
             )
         }
         return items
+    }
+
+    private fun loadSiteMap(authority: String): Map<String, SiteParent> {
+        val uri = Uri.parse("content://$authority/$SITE_MAP_PAIRS_PATH")
+        val cursor = runCatching {
+            appContext.contentResolver.query(uri, null, null, null, null)
+        }.getOrNull() ?: return emptyMap()
+        val map = HashMap<String, SiteParent>()
+        cursor.use { rows ->
+            val childClassIdx = rows.getColumnIndex(COL_CHILD_CLASS)
+            val parentClassIdx = rows.getColumnIndex(COL_PARENT_CLASS)
+            val parentTitleIdx = rows.getColumnIndex(COL_PARENT_TITLE)
+            if (childClassIdx < 0 || parentClassIdx < 0) {
+                return@use
+            }
+            while (rows.moveToNext()) {
+                val childClass = rows.stringAt(childClassIdx)?.trim().orEmpty()
+                if (childClass.isEmpty() || map.containsKey(childClass)) {
+                    continue
+                }
+                map[childClass] = SiteParent(
+                    className = rows.stringAt(parentClassIdx)?.trim().orEmpty(),
+                    title = rows.stringAt(parentTitleIdx)?.trim().orEmpty(),
+                )
+            }
+        }
+        return map
+    }
+
+    private fun settingPath(
+        settingsLabel: String,
+        rawPath: String?,
+        className: String?,
+        screenTitle: String?,
+        siteMap: Map<String, SiteParent>,
+    ): String {
+        if (!rawPath.isNullOrBlank()) {
+            return joinPath(settingsLabel, *splitPath(rawPath))
+        }
+        val chain = ArrayList<String>()
+        var current = className?.trim().orEmpty()
+        val seen = HashSet<String>()
+        while (current.isNotEmpty() && seen.add(current)) {
+            val parent = siteMap[current] ?: break
+            if (parent.title.isNotBlank()) {
+                chain += parent.title
+            }
+            current = parent.className
+        }
+        chain.reverse()
+        return joinPath(settingsLabel, *chain.toTypedArray(), screenTitle.orEmpty())
+    }
+
+    private fun splitPath(raw: String): Array<String> {
+        return raw.split(*PATH_SEPARATORS)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toTypedArray()
+    }
+
+    private fun joinPath(vararg segments: String): String {
+        val out = ArrayList<String>(segments.size)
+        for (segment in segments) {
+            val trimmed = segment.trim()
+            if (trimmed.isEmpty()) {
+                continue
+            }
+            if (out.lastOrNull()?.equals(trimmed, ignoreCase = true) == true) {
+                continue
+            }
+            out += trimmed
+        }
+        return out.joinToString(" > ")
     }
 
     private fun genericSettingsLabel(pm: PackageManager): String {
@@ -211,12 +301,19 @@ class SettingsIndex(context: Context) {
         val labelRes: Int,
         val keywordsRes: Int = 0,
         val minSdk: Int = 26,
+        val pathParentRes: Int = 0,
+    )
+
+    private class SiteParent(
+        val className: String,
+        val title: String,
     )
 
     companion object {
         private const val TAG = "SettingsSearch"
         private const val MAX_RESULTS = 20
         private const val INDEXABLES_RAW_PATH = "settings/indexables_raw"
+        private const val SITE_MAP_PAIRS_PATH = "settings/site_map_pairs"
         private const val COL_TITLE = "title"
         private const val COL_KEY = "key"
         private const val COL_KEYWORDS = "keywords"
@@ -225,29 +322,35 @@ class SettingsIndex(context: Context) {
         private const val COL_INTENT_TARGET_CLASS = "intentTargetClass"
         private const val COL_ICON_RESID = "iconResId"
         private const val COL_SCREEN_TITLE = "screenTitle"
+        private const val COL_CLASS_NAME = "className"
+        private const val COL_PATH = "path"
+        private const val COL_PARENT_CLASS = "parent_class"
+        private const val COL_CHILD_CLASS = "child_class"
+        private const val COL_PARENT_TITLE = "parent_title"
+        private val PATH_SEPARATORS = arrayOf(">", "/", "›", "／", "|")
         private val PROVIDER_AUTHORITIES = arrayOf(
             "com.android.settings",
             "com.oplus.settings",
             "com.coloros.settings",
         )
         private val CATALOG = listOf(
-            Spec(Settings.ACTION_WIFI_SETTINGS, R.string.setting_wifi, R.string.setting_wifi_keywords),
+            Spec(Settings.ACTION_WIFI_SETTINGS, R.string.setting_wifi, R.string.setting_wifi_keywords, pathParentRes = R.string.setting_wireless),
             Spec(Settings.ACTION_BLUETOOTH_SETTINGS, R.string.setting_bluetooth, R.string.setting_bluetooth_keywords),
-            Spec(Settings.ACTION_AIRPLANE_MODE_SETTINGS, R.string.setting_airplane, R.string.setting_airplane_keywords),
+            Spec(Settings.ACTION_AIRPLANE_MODE_SETTINGS, R.string.setting_airplane, R.string.setting_airplane_keywords, pathParentRes = R.string.setting_wireless),
             Spec(Settings.ACTION_WIRELESS_SETTINGS, R.string.setting_wireless, R.string.setting_wireless_keywords),
-            Spec(Settings.ACTION_DATA_ROAMING_SETTINGS, R.string.setting_mobile_network, R.string.setting_mobile_network_keywords),
-            Spec(Settings.ACTION_NETWORK_OPERATOR_SETTINGS, R.string.setting_network_operators, R.string.setting_mobile_network_keywords),
-            Spec(Settings.ACTION_APN_SETTINGS, R.string.setting_apn, R.string.setting_apn_keywords),
-            Spec(Settings.ACTION_NFC_SETTINGS, R.string.setting_nfc, R.string.setting_nfc_keywords),
-            Spec("android.settings.TETHER_SETTINGS", R.string.setting_hotspot, R.string.setting_hotspot_keywords),
+            Spec(Settings.ACTION_DATA_ROAMING_SETTINGS, R.string.setting_mobile_network, R.string.setting_mobile_network_keywords, pathParentRes = R.string.setting_wireless),
+            Spec(Settings.ACTION_NETWORK_OPERATOR_SETTINGS, R.string.setting_network_operators, R.string.setting_mobile_network_keywords, pathParentRes = R.string.setting_wireless),
+            Spec(Settings.ACTION_APN_SETTINGS, R.string.setting_apn, R.string.setting_apn_keywords, pathParentRes = R.string.setting_wireless),
+            Spec(Settings.ACTION_NFC_SETTINGS, R.string.setting_nfc, R.string.setting_nfc_keywords, pathParentRes = R.string.setting_wireless),
+            Spec("android.settings.TETHER_SETTINGS", R.string.setting_hotspot, R.string.setting_hotspot_keywords, pathParentRes = R.string.setting_wireless),
             Spec(Settings.ACTION_DISPLAY_SETTINGS, R.string.setting_display, R.string.setting_display_keywords),
-            Spec(Settings.ACTION_NIGHT_DISPLAY_SETTINGS, R.string.setting_night_light, R.string.setting_night_light_keywords),
-            Spec("android.settings.DARK_THEME_SETTINGS", R.string.setting_dark_mode, R.string.setting_dark_mode_keywords, minSdk = 29),
+            Spec(Settings.ACTION_NIGHT_DISPLAY_SETTINGS, R.string.setting_night_light, R.string.setting_night_light_keywords, pathParentRes = R.string.setting_display),
+            Spec("android.settings.DARK_THEME_SETTINGS", R.string.setting_dark_mode, R.string.setting_dark_mode_keywords, minSdk = 29, pathParentRes = R.string.setting_display),
             Spec(Settings.ACTION_SOUND_SETTINGS, R.string.setting_sound, R.string.setting_sound_keywords),
             Spec(Settings.ACTION_INTERNAL_STORAGE_SETTINGS, R.string.setting_storage, R.string.setting_storage_keywords),
             Spec(Settings.ACTION_APPLICATION_SETTINGS, R.string.setting_apps, R.string.setting_apps_keywords),
-            Spec(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS, R.string.setting_all_apps, R.string.setting_apps_keywords),
-            Spec(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, R.string.setting_default_apps, R.string.setting_default_apps_keywords),
+            Spec(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS, R.string.setting_all_apps, R.string.setting_apps_keywords, pathParentRes = R.string.setting_apps),
+            Spec(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, R.string.setting_default_apps, R.string.setting_default_apps_keywords, pathParentRes = R.string.setting_apps),
             Spec(Settings.ACTION_BATTERY_SAVER_SETTINGS, R.string.setting_battery, R.string.setting_battery_keywords),
             Spec(Settings.ACTION_LOCATION_SOURCE_SETTINGS, R.string.setting_location, R.string.setting_location_keywords),
             Spec(Settings.ACTION_SECURITY_SETTINGS, R.string.setting_security, R.string.setting_security_keywords),
@@ -255,22 +358,22 @@ class SettingsIndex(context: Context) {
             Spec(Settings.ACTION_SYNC_SETTINGS, R.string.setting_accounts, R.string.setting_accounts_keywords),
             Spec(Settings.ACTION_DATE_SETTINGS, R.string.setting_date, R.string.setting_date_keywords),
             Spec(Settings.ACTION_LOCALE_SETTINGS, R.string.setting_language, R.string.setting_language_keywords),
-            Spec(Settings.ACTION_INPUT_METHOD_SETTINGS, R.string.setting_keyboard, R.string.setting_keyboard_keywords),
+            Spec(Settings.ACTION_INPUT_METHOD_SETTINGS, R.string.setting_keyboard, R.string.setting_keyboard_keywords, pathParentRes = R.string.setting_language),
             Spec(Settings.ACTION_ACCESSIBILITY_SETTINGS, R.string.setting_accessibility, R.string.setting_accessibility_keywords),
-            Spec(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS, R.string.setting_dnd, R.string.setting_dnd_keywords),
+            Spec(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS, R.string.setting_dnd, R.string.setting_dnd_keywords, pathParentRes = R.string.setting_notifications),
             Spec("android.settings.NOTIFICATION_SETTINGS", R.string.setting_notifications, R.string.setting_notifications_keywords),
-            Spec(Settings.ACTION_HOME_SETTINGS, R.string.setting_home, R.string.setting_home_keywords),
+            Spec(Settings.ACTION_HOME_SETTINGS, R.string.setting_home, R.string.setting_home_keywords, pathParentRes = R.string.setting_apps),
             Spec(Settings.ACTION_DEVICE_INFO_SETTINGS, R.string.setting_about, R.string.setting_about_keywords),
-            Spec(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, R.string.setting_developer, R.string.setting_developer_keywords),
+            Spec(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, R.string.setting_developer, R.string.setting_developer_keywords, pathParentRes = R.string.setting_about),
             Spec(Settings.ACTION_SEARCH_SETTINGS, R.string.setting_search, R.string.setting_search_keywords),
             Spec(Settings.ACTION_PRINT_SETTINGS, R.string.setting_print, R.string.setting_print_keywords),
-            Spec(Settings.ACTION_CAPTIONING_SETTINGS, R.string.setting_captions, R.string.setting_captions_keywords),
-            Spec(Settings.ACTION_DREAM_SETTINGS, R.string.setting_screensaver, R.string.setting_screensaver_keywords),
-            Spec(Settings.ACTION_USAGE_ACCESS_SETTINGS, R.string.setting_usage_access, R.string.setting_usage_access_keywords),
-            Spec(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, R.string.setting_battery_optimization, R.string.setting_battery_keywords),
-            Spec(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, R.string.setting_overlay, R.string.setting_overlay_keywords),
-            Spec(Settings.ACTION_DATA_USAGE_SETTINGS, R.string.setting_data_usage, R.string.setting_data_usage_keywords, minSdk = 28),
-            Spec(Settings.ACTION_AUTO_ROTATE_SETTINGS, R.string.setting_auto_rotate, R.string.setting_auto_rotate_keywords, minSdk = 31),
+            Spec(Settings.ACTION_CAPTIONING_SETTINGS, R.string.setting_captions, R.string.setting_captions_keywords, pathParentRes = R.string.setting_accessibility),
+            Spec(Settings.ACTION_DREAM_SETTINGS, R.string.setting_screensaver, R.string.setting_screensaver_keywords, pathParentRes = R.string.setting_display),
+            Spec(Settings.ACTION_USAGE_ACCESS_SETTINGS, R.string.setting_usage_access, R.string.setting_usage_access_keywords, pathParentRes = R.string.setting_apps),
+            Spec(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, R.string.setting_battery_optimization, R.string.setting_battery_keywords, pathParentRes = R.string.setting_battery),
+            Spec(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, R.string.setting_overlay, R.string.setting_overlay_keywords, pathParentRes = R.string.setting_apps),
+            Spec(Settings.ACTION_DATA_USAGE_SETTINGS, R.string.setting_data_usage, R.string.setting_data_usage_keywords, minSdk = 28, pathParentRes = R.string.setting_wireless),
+            Spec(Settings.ACTION_AUTO_ROTATE_SETTINGS, R.string.setting_auto_rotate, R.string.setting_auto_rotate_keywords, minSdk = 31, pathParentRes = R.string.setting_display),
         )
     }
 }

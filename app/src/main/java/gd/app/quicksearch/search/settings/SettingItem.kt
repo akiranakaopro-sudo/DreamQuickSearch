@@ -7,6 +7,7 @@ import gd.app.quicksearch.search.MatchKeys
 data class SettingItem(
     val id: String,
     val label: String,
+    val path: String,
     val action: String?,
     val targetPackage: String?,
     val targetClass: String?,
