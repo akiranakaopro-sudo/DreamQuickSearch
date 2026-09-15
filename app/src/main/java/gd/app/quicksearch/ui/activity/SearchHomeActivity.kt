@@ -272,7 +272,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         filesHeader = SectionHeaderAdapter()
         settingsHeader = SectionHeaderAdapter()
         appAdapter = SearchAppAdapter(::openApp)
-        contactsAdapter = SearchContactsAdapter(::openContact)
+        contactsAdapter = SearchContactsAdapter(::openContact, ::callContact, ::messageContact)
         messagesAdapter = SearchMessagesAdapter(::openMessage)
         notesAdapter = SearchNotesAdapter(::openNote)
         calendarAdapter = SearchCalendarAdapter(::openCalendar)
@@ -392,6 +392,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
     private fun openContact(item: ContactItem) {
         launchAndFinish(item.viewIntent())
+    }
+
+    private fun callContact(item: ContactItem) {
+        val intent = item.callIntent() ?: return
+        launchAndFinish(intent)
+    }
+
+    private fun messageContact(item: ContactItem) {
+        val intent = item.messageIntent() ?: return
+        launchAndFinish(intent)
     }
 
     private fun openFile(item: FileItem) {

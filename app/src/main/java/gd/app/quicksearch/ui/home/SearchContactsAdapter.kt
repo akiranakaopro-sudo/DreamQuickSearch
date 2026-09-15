@@ -7,6 +7,7 @@ import android.content.pm.ResolveInfo
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
@@ -17,6 +18,8 @@ import gd.app.quicksearch.search.contacts.ContactItem
 
 class SearchContactsAdapter(
     private val onContactClicked: (ContactItem) -> Unit,
+    private val onCallClicked: (ContactItem) -> Unit,
+    private val onMessageClicked: (ContactItem) -> Unit,
 ) : RecyclerView.Adapter<COUIBaseListItemViewHolder>() {
 
     private var icon: Drawable? = null
@@ -52,6 +55,7 @@ class SearchContactsAdapter(
             height = iconSize
         }
         item.setIconStyle(COUIBaseListItemView.ROUND)
+        item.setWidgetView(R.layout.item_search_contact_actions)
         SearchCategoryCard.style(item)
         return COUIBaseListItemViewHolder(item)
     }
@@ -78,8 +82,29 @@ class SearchContactsAdapter(
         item.setTitle(SearchCategoryCard.highlighted(item, contact.name, query))
         item.setSummary(SearchCategoryCard.highlighted(item, contact.phone.orEmpty(), query))
         item.setIcon(iconFor(item))
+        bindActions(item, contact)
         item.setOnClickListener { onContactClicked(contact) }
         SearchCategoryCard.bindCorners(holder, itemCount, position)
+    }
+
+    private fun bindActions(item: COUIBaseListItemView, contact: ContactItem) {
+        val hasPhone = !contact.phone.isNullOrBlank()
+        val actions = item.findViewById<View>(android.R.id.widget_frame)
+        val call = item.findViewById<View>(R.id.contact_call)
+        val message = item.findViewById<View>(R.id.contact_message)
+        actions?.visibility = if (hasPhone) View.VISIBLE else View.GONE
+        call?.visibility = if (hasPhone) View.VISIBLE else View.GONE
+        message?.visibility = if (hasPhone) View.VISIBLE else View.GONE
+        call?.setOnClickListener {
+            if (hasPhone) {
+                onCallClicked(contact)
+            }
+        }
+        message?.setOnClickListener {
+            if (hasPhone) {
+                onMessageClicked(contact)
+            }
+        }
     }
 
     private fun iconFor(item: COUIBaseListItemView): Drawable? {

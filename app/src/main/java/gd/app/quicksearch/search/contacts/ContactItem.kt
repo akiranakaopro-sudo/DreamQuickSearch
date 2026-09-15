@@ -23,4 +23,22 @@ data class ContactItem(
         }
         return Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
+
+    fun callIntent(): Intent? {
+        val number = phone?.trim().orEmpty()
+        if (number.isEmpty()) {
+            return null
+        }
+        return Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    fun messageIntent(): Intent? {
+        val number = phone?.trim().orEmpty()
+        if (number.isEmpty()) {
+            return null
+        }
+        return Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 }

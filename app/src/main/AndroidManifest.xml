@@ -29,6 +29,10 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="vnd.android.cursor.item/contact" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
         <package android:name="com.android.contacts" />
         <package android:name="com.google.android.contacts" />
         <package android:name="com.mediatek.contacts" />
