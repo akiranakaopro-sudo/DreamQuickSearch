@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:fillAlpha="0.28"
+        android:fillColor="@color/search_bar_icon"
+        android:pathData="M10,1.5C5.306,1.5 1.5,5.306 1.5,10C1.5,14.694 5.306,18.5 10,18.5C14.694,18.5 18.5,14.694 18.5,10C18.5,5.306 14.694,1.5 10,1.5Z" />
+    <path
+        android:fillColor="@color/search_bar_icon"
+        android:pathData="M7.05,6.35C6.76,6.06 6.29,6.06 6,6.35C5.71,6.64 5.71,7.11 6,7.4L8.6,10L6,12.6C5.71,12.89 5.71,13.36 6,13.65C6.29,13.94 6.76,13.94 7.05,13.65L9.65,11.05L12.25,13.65C12.54,13.94 13.01,13.94 13.3,13.65C13.59,13.36 13.59,12.89 13.3,12.6L10.7,10L13.3,7.4C13.59,7.11 13.59,6.64 13.3,6.35C13.01,6.06 12.54,6.06 12.25,6.35L9.65,8.95L7.05,6.35Z" />
+</vector>

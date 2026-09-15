@@ -4,6 +4,7 @@
     <string name="search_hint">Apps, settings, and more</string>
     <string name="search_action">Search</string>
     <string name="search_voice">Voice search</string>
+    <string name="search_clear">Clear</string>
     <string name="search_empty_hint">Type to search apps, settings, files, and more</string>
     <string name="search_section_apps">Apps</string>
     <string name="search_section_settings">Settings</string>

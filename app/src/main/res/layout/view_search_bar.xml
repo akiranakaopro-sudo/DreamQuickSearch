@@ -40,13 +40,14 @@
 
     <ImageView
         android:id="@+id/search_voice"
-        android:layout_width="@dimen/search_bar_icon_size"
-        android:layout_height="@dimen/search_bar_icon_size"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="4dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:background="@drawable/bg_search_icon_ripple"
+        android:clickable="true"
         android:contentDescription="@string/search_voice"
-        android:scaleType="fitCenter"
+        android:focusable="true"
+        android:padding="@dimen/search_bar_icon_padding"
+        android:scaleType="center"
         android:src="@drawable/ic_search_voice" />
 
     <View

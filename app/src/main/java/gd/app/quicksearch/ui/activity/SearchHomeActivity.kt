@@ -71,6 +71,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var calendarReady = true
     private var filesReady = true
     private var askedSensitivePermissions = false
+    private var suppressQueryDispatch = false
 
     private val requestSensitivePermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -305,10 +306,17 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
     private fun setupSearch() {
         val input = binding.searchBar.searchInput
+        val voiceOrClear = binding.searchBar.searchVoice
         input.imeOptions = EditorInfo.IME_ACTION_SEARCH
         input.doAfterTextChanged { text ->
+            val query = text?.toString().orEmpty()
+            updateVoiceOrClear(query)
+            if (suppressQueryDispatch) {
+                suppressQueryDispatch = false
+                return@doAfterTextChanged
+            }
             maybeAskSensitivePermissions()
-            localSearch.onQueryChanged(text?.toString().orEmpty())
+            localSearch.onQueryChanged(query)
         }
         input.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
@@ -318,8 +326,27 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                 false
             }
         }
+        voiceOrClear.setOnClickListener {
+            if (input.text.isNullOrEmpty()) {
+                return@setOnClickListener
+            }
+            suppressQueryDispatch = true
+            input.text?.clear()
+        }
         binding.searchBar.searchAction.setOnClickListener {
             localSearch.submitNow(input.text?.toString().orEmpty())
+        }
+        updateVoiceOrClear(input.text?.toString().orEmpty())
+    }
+
+    private fun updateVoiceOrClear(query: String) {
+        val voiceOrClear = binding.searchBar.searchVoice
+        if (query.isEmpty()) {
+            voiceOrClear.setImageResource(R.drawable.ic_search_voice)
+            voiceOrClear.contentDescription = getString(R.string.search_voice)
+        } else {
+            voiceOrClear.setImageResource(R.drawable.ic_search_clear)
+            voiceOrClear.contentDescription = getString(R.string.search_clear)
         }
     }
 
