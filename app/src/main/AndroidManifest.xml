@@ -75,12 +75,17 @@
         <package android:name="com.oplus.note" />
         <package android:name="com.nearme.note" />
         <package android:name="com.oneplus.note" />
+        <package android:name="gd.app.note" />
         <provider android:authorities="com.coloros.note.notesprovider" />
         <provider android:authorities="com.nearme.note" />
         <provider android:authorities="com.oplus.note.notesprovider" />
         <provider android:authorities="com.coloros.note" />
         <provider android:authorities="com.nearme.note.notesprovider" />
         <provider android:authorities="com.oplus.note" />
+        <provider android:authorities="gd.app.note.search" />
+        <intent>
+            <action android:name="gd.app.note.VIEW_NOTE" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="*/*" />

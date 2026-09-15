@@ -201,6 +201,7 @@ class NotesIndex(context: Context) {
         private const val MAX_INDEX = 800
         private const val BODY_INDEX_CHARS = 800
         private val AUTHORITIES = arrayOf(
+            "gd.app.note.search",
             "com.coloros.note.notesprovider",
             "com.nearme.note",
             "com.oplus.note.notesprovider",
