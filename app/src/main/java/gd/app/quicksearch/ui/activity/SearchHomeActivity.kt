@@ -74,6 +74,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var askedSensitivePermissions = false
     private var suppressQueryDispatch = false
     private var resultsAtTop = true
+    private var restoreImeAfterResultsScroll = false
     private var currentQuery = ""
     private val launcher = SearchLauncher(this) { localSearch.refreshApps() }
 
@@ -312,12 +313,26 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             setHasFixedSize(true)
             addOnScrollListener(object : RecyclerView.OnScrollListener() {
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    syncImeWithResultsScroll(recyclerView)
+                    resultsAtTop = !recyclerView.canScrollVertically(-1)
+                    if (restoreImeAfterResultsScroll && !resultsAtTop) {
+                        hideIme()
+                    }
                 }
 
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-                        syncImeWithResultsScroll(recyclerView)
+                    when (newState) {
+                        RecyclerView.SCROLL_STATE_DRAGGING -> {
+                            restoreImeAfterResultsScroll = true
+                            hideIme()
+                        }
+
+                        RecyclerView.SCROLL_STATE_IDLE -> {
+                            resultsAtTop = !recyclerView.canScrollVertically(-1)
+                            if (restoreImeAfterResultsScroll && resultsAtTop) {
+                                showIme()
+                            }
+                            restoreImeAfterResultsScroll = false
+                        }
                     }
                 }
             })
@@ -462,19 +477,6 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private fun captureResultsScroll() {
         binding.searchResults.post {
             resultsAtTop = !binding.searchResults.canScrollVertically(-1)
-        }
-    }
-
-    private fun syncImeWithResultsScroll(list: RecyclerView) {
-        val atTop = !list.canScrollVertically(-1)
-        if (atTop == resultsAtTop) {
-            return
-        }
-        resultsAtTop = atTop
-        if (atTop) {
-            showIme()
-        } else {
-            hideIme()
         }
     }
 
