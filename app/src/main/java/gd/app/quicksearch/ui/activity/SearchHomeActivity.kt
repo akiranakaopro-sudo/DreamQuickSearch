@@ -22,6 +22,7 @@ import androidx.core.view.updatePadding
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import gd.app.quicksearch.QsbApplicationWrapper
 import gd.app.quicksearch.R
 import gd.app.quicksearch.databinding.ActivitySearchHomeBinding
@@ -72,6 +73,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var filesReady = true
     private var askedSensitivePermissions = false
     private var suppressQueryDispatch = false
+    private var resultsAtTop = true
 
     private val requestSensitivePermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -163,6 +165,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         calendarHeader.hide()
         filesHeader.hide()
         binding.emptyState.visibility = View.GONE
+        captureResultsScroll()
     }
 
     override fun onApps(query: String, apps: List<InstalledApp>) {
@@ -261,6 +264,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         calendarHeader.hide()
         filesHeader.hide()
         binding.emptyState.visibility = View.GONE
+        captureResultsScroll()
     }
 
     private fun setupResults() {
@@ -298,6 +302,17 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             )
             itemAnimator = null
             setHasFixedSize(true)
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    syncImeWithResultsScroll(recyclerView)
+                }
+
+                override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                        syncImeWithResultsScroll(recyclerView)
+                    }
+                }
+            })
         }
         binding.emptyState.setAnimFileName("no_search_results_dark.json")
         binding.emptyState.findViewById<TextView>(com.coui.appcompat.R.id.empty_view_title)
@@ -498,6 +513,32 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             view.updatePadding(top = bars.top + extraTop, bottom = bars.bottom)
             insets
         }
+    }
+
+    private fun captureResultsScroll() {
+        binding.searchResults.post {
+            resultsAtTop = !binding.searchResults.canScrollVertically(-1)
+        }
+    }
+
+    private fun syncImeWithResultsScroll(list: RecyclerView) {
+        val atTop = !list.canScrollVertically(-1)
+        if (atTop == resultsAtTop) {
+            return
+        }
+        resultsAtTop = atTop
+        if (atTop) {
+            showIme()
+        } else {
+            hideIme()
+        }
+    }
+
+    private fun showIme() {
+        val input = binding.searchBar.searchInput
+        input.requestFocus()
+        val imm = getSystemService(InputMethodManager::class.java) ?: return
+        imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun hideIme() {
