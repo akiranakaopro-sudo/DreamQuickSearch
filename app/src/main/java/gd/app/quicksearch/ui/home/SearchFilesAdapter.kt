@@ -1,22 +1,41 @@
 package gd.app.quicksearch.ui.home
 
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.Handler
+import android.os.Looper
+import android.util.LruCache
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.ImageView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.coui.appcompat.itemview.COUIBaseListItemView
 import com.coui.appcompat.itemview.COUIBaseListItemViewHolder
 import gd.app.quicksearch.R
 import gd.app.quicksearch.search.files.FileItem
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 class SearchFilesAdapter(
     private val onFileClicked: (FileItem) -> Unit,
 ) : RecyclerView.Adapter<COUIBaseListItemViewHolder>() {
 
-    private var icon: Drawable? = null
+    private val main = Handler(Looper.getMainLooper())
+    private val thumbs = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "file-thumbs").apply { isDaemon = true }
+    }
+    private val cache = object : LruCache<String, Drawable>(THUMB_CACHE_BYTES) {
+        override fun sizeOf(key: String, value: Drawable): Int {
+            val bitmap = (value as? BitmapDrawable)?.bitmap ?: return 1
+            return bitmap.byteCount.coerceAtLeast(1)
+        }
+    }
+    private val failed = ConcurrentHashMap.newKeySet<String>()
+    private val loading = ConcurrentHashMap.newKeySet<String>()
     private val items = ArrayList<FileItem>()
     private var query = ""
+    private var iconSizePx = 0
 
     init {
         setHasStableIds(true)
@@ -41,11 +60,13 @@ class SearchFilesAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): COUIBaseListItemViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_search_app, parent, false)
         val iconSize = parent.resources.getDimensionPixelSize(R.dimen.search_app_icon_size)
+        iconSizePx = iconSize
         val item = view as COUIBaseListItemView
         item.iconView.layoutParams = item.iconView.layoutParams.apply {
             width = iconSize
             height = iconSize
         }
+        item.iconView.scaleType = ImageView.ScaleType.CENTER_CROP
         item.setIconStyle(COUIBaseListItemView.ROUND)
         SearchCategoryCard.style(item)
         return COUIBaseListItemViewHolder(item)
@@ -64,6 +85,10 @@ class SearchFilesAdapter(
             SearchCategoryCard.bindCorners(holder, itemCount, position)
             return
         }
+        if (payloads.size == 1 && payloads[0] == PAYLOAD_THUMB) {
+            bindIcon(holder.itemView as COUIBaseListItemView, items[position])
+            return
+        }
         bind(holder, position)
     }
 
@@ -72,20 +97,40 @@ class SearchFilesAdapter(
         val item = holder.itemView as COUIBaseListItemView
         item.setTitle(SearchCategoryCard.highlighted(item, file.name, query))
         item.setSummary(SearchCategoryCard.highlighted(item, file.path.ifEmpty { file.mime }, query))
-        item.setIcon(iconFor(item))
+        bindIcon(item, file)
         item.setOnClickListener { onFileClicked(file) }
         SearchCategoryCard.bindCorners(holder, itemCount, position)
     }
 
-    private fun iconFor(item: COUIBaseListItemView): Drawable? {
-        icon?.let { return it }
-        val pm = item.context.packageManager
-        for (pkg in FILE_PACKAGES) {
-            val loaded = runCatching { pm.getApplicationIcon(pkg) }.getOrNull() ?: continue
-            icon = loaded
-            return loaded
+    private fun bindIcon(item: COUIBaseListItemView, file: FileItem) {
+        cache.get(file.id)?.let { thumb ->
+            item.setIcon(thumb)
+            return
         }
-        return null
+        item.setIcon(SearchFileIcons.placeholder(item.context, file))
+        if (!SearchFileIcons.wantsThumbnail(file) || failed.contains(file.id) || !loading.add(file.id)) {
+            return
+        }
+        val sizePx = iconSizePx
+        val id = file.id
+        val app = item.context.applicationContext
+        thumbs.execute {
+            val bitmap = SearchFileIcons.loadThumbnail(app, file, sizePx)
+            if (bitmap == null) {
+                failed.add(id)
+                loading.remove(id)
+                return@execute
+            }
+            val drawable = BitmapDrawable(app.resources, bitmap)
+            cache.put(id, drawable)
+            loading.remove(id)
+            main.post {
+                val position = items.indexOfFirst { it.id == id }
+                if (position >= 0) {
+                    notifyItemChanged(position, PAYLOAD_THUMB)
+                }
+            }
+        }
     }
 
     private class Diff(
@@ -104,12 +149,7 @@ class SearchFilesAdapter(
 
     companion object {
         private const val PAYLOAD_CARD = "card"
-        private val FILE_PACKAGES = arrayOf(
-            "com.google.android.documentsui",
-            "com.android.documentsui",
-            "com.coloros.filemanager",
-            "com.oplus.filemanager",
-            "com.oneplus.filemanager",
-        )
+        private const val PAYLOAD_THUMB = "thumb"
+        private const val THUMB_CACHE_BYTES = 2 * 1024 * 1024
     }
 }
