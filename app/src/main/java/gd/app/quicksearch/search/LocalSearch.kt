@@ -63,6 +63,7 @@ class LocalSearch(
         apps.warm(appsExecutor)
         settings.warm(settingsExecutor)
         attachNotes()
+        attachCalendar()
         contactsGranted = contacts.hasPermission()
         if (contactsGranted) {
             attachContacts()
@@ -72,9 +73,6 @@ class LocalSearch(
             attachMessages()
         }
         calendarGranted = calendar.hasPermission()
-        if (calendarGranted) {
-            attachCalendar()
-        }
         filesGranted = files.hasPermission()
         if (filesGranted) {
             attachFiles()

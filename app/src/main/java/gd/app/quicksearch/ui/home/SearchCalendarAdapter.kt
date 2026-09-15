@@ -34,7 +34,14 @@ class SearchCalendarAdapter(
 
     override fun getItemCount(): Int = items.size
 
-    override fun getItemId(position: Int): Long = items[position].id
+    override fun getItemId(position: Int): Long {
+        val item = items[position]
+        return when {
+            item.isTodo -> item.id xor 0x4000000000000000L
+            item.fromDreamCalendar -> item.id
+            else -> item.id xor Long.MIN_VALUE
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): COUIBaseListItemViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_search_app, parent, false)
@@ -91,8 +98,13 @@ class SearchCalendarAdapter(
     ) : DiffUtil.Callback() {
         override fun getOldListSize(): Int = old.size
         override fun getNewListSize(): Int = new.size
-        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-            old[oldItemPosition].id == new[newItemPosition].id
+        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+            val oldItem = old[oldItemPosition]
+            val newItem = new[newItemPosition]
+            return oldItem.id == newItem.id &&
+                oldItem.fromDreamCalendar == newItem.fromDreamCalendar &&
+                oldItem.isTodo == newItem.isTodo
+        }
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
             old[oldItemPosition] == new[newItemPosition]
     }

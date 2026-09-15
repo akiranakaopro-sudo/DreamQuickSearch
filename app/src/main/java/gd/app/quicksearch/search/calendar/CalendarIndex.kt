@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.database.Cursor
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
@@ -27,13 +28,19 @@ class CalendarIndex(context: Context) {
     @Volatile
     private var dirty = true
     @Volatile
-    private var watching = false
+    private var watchingDream = false
+    @Volatile
+    private var watchingContract = false
     private var snapshot: List<CalendarItem> = emptyList()
     private var onInvalidated: (() -> Unit)? = null
 
     fun hasPermission(): Boolean {
         return ContextCompat.checkSelfPermission(appContext, Manifest.permission.READ_CALENDAR) ==
             PackageManager.PERMISSION_GRANTED
+    }
+
+    fun hasDreamCalendar(): Boolean {
+        return appContext.packageManager.resolveContentProvider(DREAM_AUTHORITY, 0) != null
     }
 
     fun invalidate() {
@@ -46,17 +53,8 @@ class CalendarIndex(context: Context) {
 
     fun watch(onInvalidated: () -> Unit) {
         this.onInvalidated = onInvalidated
-        if (watching || !hasPermission()) {
-            return
-        }
-        watching = true
-        runCatching {
-            appContext.contentResolver.registerContentObserver(
-                CalendarContract.Events.CONTENT_URI,
-                true,
-                observer,
-            )
-        }
+        watchDreamCalendar()
+        watchCalendarContract()
     }
 
     fun clearWatch() {
@@ -64,9 +62,6 @@ class CalendarIndex(context: Context) {
     }
 
     fun search(query: String): List<CalendarItem> {
-        if (!hasPermission()) {
-            return emptyList()
-        }
         val needle = SearchText.needle(query)
         if (needle.isEmpty()) {
             return emptyList()
@@ -89,9 +84,6 @@ class CalendarIndex(context: Context) {
     }
 
     private fun events(): List<CalendarItem> {
-        if (!hasPermission()) {
-            return emptyList()
-        }
         if (!dirty) {
             return snapshot
         }
@@ -107,13 +99,53 @@ class CalendarIndex(context: Context) {
 
     private fun loadLocked(): List<CalendarItem> {
         val started = System.nanoTime()
+        val dream = loadDreamCalendar()
+        val system = if (hasPermission()) loadCalendarContract() else emptyList()
+        val items = if (dream.isEmpty()) {
+            system
+        } else if (system.isEmpty()) {
+            dream
+        } else {
+            dream + system
+        }
+        Log.d(TAG, "indexed ${items.size} events (${dream.size} dream) in ${(System.nanoTime() - started) / 1_000_000}ms")
+        return items
+    }
+
+    private fun loadDreamCalendar(): List<CalendarItem> {
+        if (!hasDreamCalendar()) {
+            return emptyList()
+        }
+        val cursor = runCatching {
+            appContext.contentResolver.query(
+                DREAM_EVENTS_URI,
+                arrayOf(
+                    CalendarContract.Events._ID,
+                    CalendarContract.Events.TITLE,
+                    CalendarContract.Events.DESCRIPTION,
+                    CalendarContract.Events.EVENT_LOCATION,
+                    CalendarContract.Events.DTSTART,
+                    CalendarContract.Events.ALL_DAY,
+                ),
+                null,
+                null,
+                null,
+            )
+        }.getOrNull() ?: return emptyList()
+        return readEvents(cursor, fromDreamCalendar = true)
+    }
+
+    private fun loadCalendarContract(): List<CalendarItem> {
         val cursor = queryEvents(
             "${CalendarContract.Events.DELETED}=0 AND ${CalendarContract.Events.VISIBLE}=1",
         ) ?: queryEvents("${CalendarContract.Events.DELETED}=0")
         if (cursor == null) {
-            Log.d(TAG, "indexed 0 events")
             return emptyList()
         }
+        return readEvents(cursor, fromDreamCalendar = false)
+    }
+
+    private fun readEvents(cursor: Cursor, fromDreamCalendar: Boolean): List<CalendarItem> {
         val items = ArrayList<CalendarItem>(MAX_INDEX)
         cursor.use { rows ->
             val idIdx = rows.getColumnIndex(CalendarContract.Events._ID)
@@ -122,6 +154,7 @@ class CalendarIndex(context: Context) {
             val locIdx = rows.getColumnIndex(CalendarContract.Events.EVENT_LOCATION)
             val startIdx = rows.getColumnIndex(CalendarContract.Events.DTSTART)
             val allDayIdx = rows.getColumnIndex(CalendarContract.Events.ALL_DAY)
+            val kindIdx = rows.getColumnIndex("kind")
             if (idIdx < 0) {
                 return emptyList()
             }
@@ -138,17 +171,24 @@ class CalendarIndex(context: Context) {
                     description
                 }
                 val label = title.ifEmpty { location.ifEmpty { clipped } }
+                val isTodo = fromDreamCalendar &&
+                    kindIdx >= 0 &&
+                    rows.stringAt(kindIdx) == "todo"
                 items += CalendarItem(
                     id = rows.getLong(idIdx),
                     title = label,
                     location = location,
                     start = rows.longAt(startIdx),
                     allDay = allDayIdx >= 0 && rows.getInt(allDayIdx) == 1,
-                    keys = SearchText.keys(label, listOf(location, clipped).filter { it.isNotEmpty() }.joinToString(",")),
+                    keys = SearchText.keys(
+                        label,
+                        listOf(location, clipped).filter { it.isNotEmpty() }.joinToString(","),
+                    ),
+                    fromDreamCalendar = fromDreamCalendar,
+                    isTodo = isTodo,
                 )
             }
         }
-        Log.d(TAG, "indexed ${items.size} events in ${(System.nanoTime() - started) / 1_000_000}ms")
         return items
     }
 
@@ -171,11 +211,40 @@ class CalendarIndex(context: Context) {
         }.getOrNull()
     }
 
+    private fun watchDreamCalendar() {
+        if (watchingDream) {
+            return
+        }
+        if (!hasDreamCalendar()) {
+            return
+        }
+        watchingDream = true
+        runCatching {
+            appContext.contentResolver.registerContentObserver(DREAM_EVENTS_URI, true, observer)
+        }
+    }
+
+    private fun watchCalendarContract() {
+        if (watchingContract || !hasPermission()) {
+            return
+        }
+        watchingContract = true
+        runCatching {
+            appContext.contentResolver.registerContentObserver(
+                CalendarContract.Events.CONTENT_URI,
+                true,
+                observer,
+            )
+        }
+    }
+
     companion object {
         private const val TAG = "CalendarSearch"
         private const val MAX_RESULTS = 20
         private const val MAX_INDEX = 1500
         private const val BODY_INDEX_CHARS = 400
+        private const val DREAM_AUTHORITY = "gd.app.calendar.search"
+        private val DREAM_EVENTS_URI: Uri = Uri.parse("content://$DREAM_AUTHORITY/events")
 
         private fun compareStart(a: Long, b: Long, now: Long): Int {
             val aFuture = a >= now
