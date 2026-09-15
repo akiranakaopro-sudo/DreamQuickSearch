@@ -19,9 +19,8 @@ internal object SearchCategoryCard {
         COUICardListHelper.refreshCardBg(item.rootItemView, color)
         item.setTitleColor(ContextCompat.getColorStateList(item.context, R.color.search_category_title))
         item.setSummaryColor(ContextCompat.getColorStateList(item.context, R.color.search_category_summary))
-        val summary = item.findViewById<TextView>(android.R.id.summary) ?: return
-        summary.maxLines = 1
-        summary.ellipsize = TextUtils.TruncateAt.END
+        oneLine(item.findViewById(android.R.id.title))
+        oneLine(item.findViewById(android.R.id.summary))
     }
 
     fun bindCorners(holder: COUIBaseListItemViewHolder, itemCount: Int, position: Int) {
@@ -30,6 +29,12 @@ internal object SearchCategoryCard {
 
     fun highlighted(item: COUIBaseListItemView, text: CharSequence, query: String): CharSequence {
         return SearchMatchHighlight.apply(item.context, singleLine(text), query)
+    }
+
+    private fun oneLine(text: TextView?) {
+        text ?: return
+        text.maxLines = 1
+        text.ellipsize = TextUtils.TruncateAt.END
     }
 
     /** MMS/notes bodies keep newlines; ColorOS shows that content as one ellipsized row. */
