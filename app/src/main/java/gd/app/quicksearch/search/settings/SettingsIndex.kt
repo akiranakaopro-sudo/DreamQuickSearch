@@ -92,9 +92,20 @@ class SettingsIndex(context: Context) {
     }
 
     private fun loadFromProviders(settingsLabel: String): List<SettingItem> {
+        // Search-index providers on Android/ColorOS are protected by this
+        // signature permission. Avoid several doomed provider resolutions when
+        // this regular app cannot read them; the local catalog remains complete.
+        if (appContext.checkSelfPermission(READ_SEARCH_INDEXABLES) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return emptyList()
+        }
         val items = ArrayList<SettingItem>()
         val seen = HashSet<String>()
         for (authority in PROVIDER_AUTHORITIES) {
+            if (!canReadProvider(authority)) {
+                continue
+            }
             val uri = Uri.parse("content://$authority/$INDEXABLES_RAW_PATH")
             val cursor = runCatching {
                 appContext.contentResolver.query(uri, null, null, null, null)
@@ -163,6 +174,19 @@ class SettingsIndex(context: Context) {
             }
         }
         return items
+    }
+
+    private fun canReadProvider(authority: String): Boolean {
+        val pm = appContext.packageManager
+        val provider = if (Build.VERSION.SDK_INT >= 33) {
+            pm.resolveContentProvider(authority, PackageManager.ComponentInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.resolveContentProvider(authority, 0)
+        } ?: return false
+        val permission = provider.readPermission
+        return permission.isNullOrEmpty() ||
+            pm.checkPermission(permission, appContext.packageName) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun Cursor.stringAt(index: Int): String? {
@@ -311,6 +335,7 @@ class SettingsIndex(context: Context) {
 
     companion object {
         private const val TAG = "SettingsSearch"
+        private const val READ_SEARCH_INDEXABLES = "android.permission.READ_SEARCH_INDEXABLES"
         private const val MAX_RESULTS = 20
         private const val INDEXABLES_RAW_PATH = "settings/indexables_raw"
         private const val SITE_MAP_PAIRS_PATH = "settings/site_map_pairs"

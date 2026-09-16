@@ -3,8 +3,10 @@ package gd.app.quicksearch.search.apps
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Process
 import android.util.Log
 import gd.app.quicksearch.search.SearchText
 import java.text.Collator
@@ -64,6 +66,36 @@ class InstalledAppIndex(context: Context) {
 
     private fun loadLocked(): List<InstalledApp> {
         val started = System.nanoTime()
+        val launcherApps = appContext.getSystemService(LauncherApps::class.java)
+        val resolved = runCatching {
+            launcherApps?.getActivityList(null, Process.myUserHandle()).orEmpty()
+        }.getOrDefault(emptyList())
+        if (resolved.isEmpty()) {
+            return loadWithPackageManager(started)
+        }
+        val apps = ArrayList<InstalledApp>(resolved.size)
+        val seen = HashSet<ComponentName>(resolved.size)
+        for (info in resolved) {
+            val component = info.componentName
+            if (!seen.add(component)) {
+                continue
+            }
+            val label = info.label?.toString()?.trim().orEmpty()
+            if (label.isEmpty()) {
+                continue
+            }
+            apps += InstalledApp(
+                component = component,
+                label = label,
+                keys = SearchText.keys(label),
+            )
+        }
+        apps.sortWith { a, b -> collator.compare(a.label, b.label) }
+        Log.d(TAG, "indexed ${apps.size} apps in ${(System.nanoTime() - started) / 1_000_000}ms")
+        return apps
+    }
+
+    private fun loadWithPackageManager(started: Long): List<InstalledApp> {
         val pm = appContext.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val resolved = queryLaunchers(pm, intent)
@@ -82,14 +114,10 @@ class InstalledAppIndex(context: Context) {
             if (label.isEmpty()) {
                 continue
             }
-            apps += InstalledApp(
-                component = component,
-                label = label,
-                keys = SearchText.keys(label),
-            )
+            apps += InstalledApp(component, label, SearchText.keys(label))
         }
         apps.sortWith { a, b -> collator.compare(a.label, b.label) }
-        Log.d(TAG, "indexed ${apps.size} apps in ${(System.nanoTime() - started) / 1_000_000}ms")
+        Log.d(TAG, "indexed ${apps.size} apps with fallback in ${(System.nanoTime() - started) / 1_000_000}ms")
         return apps
     }
 

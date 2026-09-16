@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.database.Cursor
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract
@@ -72,7 +73,8 @@ class ContactsIndex(context: Context) {
         val compact = SearchText.compact(needle)
         val digits = digitsOf(needle)
         val ranked = ArrayList<Pair<Int, ContactItem>>()
-        for (contact in contacts()) {
+        val pool = if (dirty) filteredContacts(query) ?: contacts() else contacts()
+        for (contact in pool) {
             val rank = rank(contact, needle, compact, digits) ?: continue
             ranked += rank to contact
         }
@@ -108,6 +110,71 @@ class ContactsIndex(context: Context) {
         val drafts = LinkedHashMap<Long, Draft>()
         loadNames(drafts)
         loadPhones(drafts)
+        val items = toItems(drafts)
+        Log.d(TAG, "indexed ${items.size} contacts in ${(System.nanoTime() - started) / 1_000_000}ms")
+        return items
+    }
+
+    private fun filteredContacts(query: String): List<ContactItem>? {
+        val started = System.nanoTime()
+        val uri = Uri.withAppendedPath(Phone.CONTENT_FILTER_URI, Uri.encode(query))
+        val cursor = runCatching {
+            appContext.contentResolver.query(
+                uri,
+                arrayOf(
+                    Phone.CONTACT_ID,
+                    Contacts.DISPLAY_NAME_PRIMARY,
+                    Contacts.LOOKUP_KEY,
+                    Phone.NUMBER,
+                    Contacts.PHOTO_THUMBNAIL_URI,
+                ),
+                null,
+                null,
+                null,
+            )
+        }.getOrNull() ?: return null
+        val drafts = LinkedHashMap<Long, Draft>()
+        cursor.use { rows ->
+            val idIdx = rows.getColumnIndex(Phone.CONTACT_ID)
+            val nameIdx = rows.getColumnIndex(Contacts.DISPLAY_NAME_PRIMARY)
+            val lookupIdx = rows.getColumnIndex(Contacts.LOOKUP_KEY)
+            val numberIdx = rows.getColumnIndex(Phone.NUMBER)
+            val photoIdx = rows.getColumnIndex(Contacts.PHOTO_THUMBNAIL_URI)
+            if (idIdx < 0) {
+                return null
+            }
+            while (rows.moveToNext()) {
+                val id = rows.getLong(idIdx)
+                val draft = drafts.getOrPut(id) {
+                    Draft(
+                        id = id,
+                        lookupKey = rows.stringAt(lookupIdx),
+                        name = rows.stringAt(nameIdx)?.trim().orEmpty(),
+                        photoUri = rows.stringAt(photoIdx),
+                    )
+                }
+                val number = rows.stringAt(numberIdx)?.trim().orEmpty()
+                if (number.isNotEmpty() && number !in draft.phones) {
+                    draft.phones += number
+                    if (draft.primaryPhone == null) {
+                        draft.primaryPhone = number
+                    }
+                }
+                val numberDigits = digitsOf(number)
+                if (numberDigits.isNotEmpty() && numberDigits !in draft.digits) {
+                    draft.digits += numberDigits
+                }
+                if (drafts.size >= MAX_FILTERED_CONTACTS) {
+                    break
+                }
+            }
+        }
+        val items = toItems(drafts)
+        Log.d(TAG, "filtered ${items.size} contacts in ${(System.nanoTime() - started) / 1_000_000}ms")
+        return items
+    }
+
+    private fun toItems(drafts: LinkedHashMap<Long, Draft>): List<ContactItem> {
         val items = ArrayList<ContactItem>(drafts.size)
         for (draft in drafts.values) {
             val name = draft.name.ifBlank { draft.primaryPhone.orEmpty() }
@@ -126,7 +193,6 @@ class ContactsIndex(context: Context) {
             )
         }
         items.sortWith { a, b -> collator.compare(a.name, b.name) }
-        Log.d(TAG, "indexed ${items.size} contacts in ${(System.nanoTime() - started) / 1_000_000}ms")
         return items
     }
 
@@ -233,6 +299,7 @@ class ContactsIndex(context: Context) {
     companion object {
         private const val TAG = "ContactsSearch"
         private const val MAX_RESULTS = 20
+        private const val MAX_FILTERED_CONTACTS = 100
         private const val MIN_PHONE_DIGITS = 2
 
         fun digitsOf(raw: String): String {

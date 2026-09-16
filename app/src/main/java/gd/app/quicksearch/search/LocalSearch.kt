@@ -60,8 +60,9 @@ class LocalSearch(
     private var filesGranted = false
 
     fun warm() {
+        // Apps are the cheapest and most useful cold-start result. Warming every
+        // provider here makes them contend with each other and delays all results.
         apps.warm(appsExecutor)
-        settings.warm(settingsExecutor)
         attachNotes()
         attachCalendar()
         contactsGranted = contacts.hasPermission()
@@ -186,8 +187,6 @@ class LocalSearch(
     }
 
     private fun attachContacts() {
-        contacts.invalidate()
-        contacts.warm(contactsExecutor)
         contacts.watch {
             main.post {
                 if (pendingQuery.isNotBlank()) {
@@ -198,8 +197,6 @@ class LocalSearch(
     }
 
     private fun attachMessages() {
-        messages.invalidate()
-        messages.warm(messagesExecutor)
         messages.watch {
             main.post {
                 if (pendingQuery.isNotBlank()) {
@@ -210,8 +207,6 @@ class LocalSearch(
     }
 
     private fun attachNotes() {
-        notes.invalidate()
-        notes.warm(notesExecutor)
         notes.watch {
             main.post {
                 if (pendingQuery.isNotBlank()) {
@@ -222,8 +217,6 @@ class LocalSearch(
     }
 
     private fun attachCalendar() {
-        calendar.invalidate()
-        calendar.warm(calendarExecutor)
         calendar.watch {
             main.post {
                 if (pendingQuery.isNotBlank()) {
@@ -234,8 +227,6 @@ class LocalSearch(
     }
 
     private fun attachFiles() {
-        files.invalidate()
-        files.warm(filesExecutor)
         files.watch {
             main.post {
                 if (pendingQuery.isNotBlank()) {
@@ -252,14 +243,9 @@ class LocalSearch(
             listener.onCleared()
             return
         }
+        Log.d(TAG, "dispatch query='$query'")
         listener.onQueryStarted(query)
         appsExecutor.execute { searchApps(token, query) }
-        settingsExecutor.execute { searchSettings(token, query) }
-        contactsExecutor.execute { searchContacts(token, query) }
-        messagesExecutor.execute { searchMessages(token, query) }
-        notesExecutor.execute { searchNotes(token, query) }
-        calendarExecutor.execute { searchCalendar(token, query) }
-        filesExecutor.execute { searchFiles(token, query) }
     }
 
     private fun searchApps(token: Int, query: String) {
@@ -274,6 +260,8 @@ class LocalSearch(
                 listener.onApps(query, result)
             }
         }
+        enqueue(token, settingsExecutor) { searchSettings(token, query) }
+        enqueue(token, filesExecutor) { searchFiles(token, query) }
     }
 
     private fun searchSettings(token: Int, query: String) {
@@ -316,6 +304,7 @@ class LocalSearch(
                 listener.onMessages(query, result)
             }
         }
+        enqueue(token, contactsExecutor) { searchContacts(token, query) }
     }
 
     private fun searchNotes(token: Int, query: String) {
@@ -330,6 +319,7 @@ class LocalSearch(
                 listener.onNotes(query, result)
             }
         }
+        enqueue(token, messagesExecutor) { searchMessages(token, query) }
     }
 
     private fun searchCalendar(token: Int, query: String) {
@@ -344,6 +334,7 @@ class LocalSearch(
                 listener.onCalendar(query, result)
             }
         }
+        enqueue(token, notesExecutor) { searchNotes(token, query) }
     }
 
     private fun searchFiles(token: Int, query: String) {
@@ -356,6 +347,20 @@ class LocalSearch(
         main.post {
             if (token == generation.get()) {
                 listener.onFiles(query, result)
+            }
+        }
+        enqueue(token, calendarExecutor) { searchCalendar(token, query) }
+    }
+
+    private fun enqueue(token: Int, executor: ExecutorService, search: () -> Unit) {
+        if (token != generation.get() || executor.isShutdown) {
+            return
+        }
+        runCatching {
+            executor.execute {
+                if (token == generation.get()) {
+                    search()
+                }
             }
         }
     }

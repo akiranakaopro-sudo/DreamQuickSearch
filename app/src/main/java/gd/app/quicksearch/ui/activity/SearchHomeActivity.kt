@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -176,9 +177,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         appsReady = true
         appAdapter.submit(collapse(apps), query)
         bindSection(appsHeader, R.string.search_section_apps, apps.size)
+        logBind("apps", apps.size, started)
         updateEmptyState(query)
     }
 
@@ -186,9 +189,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         settingsReady = true
         settingsAdapter.submit(collapse(settings), query)
         bindSection(settingsHeader, R.string.search_section_settings, settings.size)
+        logBind("settings", settings.size, started)
         updateEmptyState(query)
     }
 
@@ -196,9 +201,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         contactsReady = true
         contactsAdapter.submit(collapse(contacts), query)
         bindSection(contactsHeader, R.string.search_section_contacts, contacts.size)
+        logBind("contacts", contacts.size, started)
         updateEmptyState(query)
     }
 
@@ -206,9 +213,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         messagesReady = true
         messagesAdapter.submit(collapse(messages), query)
         bindSection(messagesHeader, R.string.search_section_messages, messages.size)
+        logBind("messages", messages.size, started)
         updateEmptyState(query)
     }
 
@@ -216,9 +225,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         notesReady = true
         notesAdapter.submit(collapse(notes), query)
         bindSection(notesHeader, R.string.search_section_notes, notes.size)
+        logBind("notes", notes.size, started)
         updateEmptyState(query)
     }
 
@@ -226,9 +237,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         calendarReady = true
         calendarAdapter.submit(collapse(events), query)
         bindSection(calendarHeader, R.string.search_section_calendar, events.size)
+        logBind("calendar", events.size, started)
         updateEmptyState(query)
     }
 
@@ -236,9 +249,11 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        val started = System.nanoTime()
         filesReady = true
         filesAdapter.submit(collapse(files), query)
         bindSection(filesHeader, R.string.search_section_files, files.size)
+        logBind("files", files.size, started)
         updateEmptyState(query)
     }
 
@@ -396,6 +411,10 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         }
     }
 
+    private fun logBind(source: String, count: Int, started: Long) {
+        Log.d(TAG, "$source bind=$count ${(System.nanoTime() - started) / 1_000_000}ms")
+    }
+
     private fun openCategory(category: SearchCategory) {
         if (currentQuery.isEmpty()) {
             return
@@ -501,5 +520,9 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             addDataScheme("package")
         }
         ContextCompat.registerReceiver(this, packageReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
+    }
+
+    companion object {
+        private const val TAG = "SearchHome"
     }
 }

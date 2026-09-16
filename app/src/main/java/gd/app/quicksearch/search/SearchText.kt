@@ -17,6 +17,7 @@ data class MatchKeys(
 object SearchText {
 
     private const val MAX_HIGHLIGHTS = 8
+    private val diacriticMarks = "\\p{M}+".toRegex()
 
     fun needle(query: String): String = query.trim().lowercase(Locale.getDefault())
 
@@ -24,7 +25,13 @@ object SearchText {
 
     fun keys(label: String, keywords: String = ""): MatchKeys {
         val labelLower = label.lowercase(Locale.getDefault())
-        val pinyin = HanLatin.of(label)
+        // Creating Android's Han-Latin transliterator costs several seconds on
+        // some cold starts. Ordinary labels need no transliteration at all.
+        val pinyin = if (containsHan(label)) {
+            HanLatin.of(label)
+        } else {
+            stripDiacritics(labelLower)
+        }
         val parts = keywords.split(',', '，', ';', '、')
             .map { it.trim().lowercase(Locale.getDefault()) }
             .filter { it.isNotEmpty() }
@@ -37,6 +44,23 @@ object SearchText {
             keywords = parts,
         )
     }
+
+    private fun containsHan(text: String): Boolean {
+        var index = 0
+        while (index < text.length) {
+            val codePoint = text.codePointAt(index)
+            if (Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN) {
+                return true
+            }
+            index += Character.charCount(codePoint)
+        }
+        return false
+    }
+
+    private fun stripDiacritics(text: String): String =
+        Normalizer.normalize(text, Normalizer.Form.NFD)
+            .replace(diacriticMarks, "")
+            .trim()
 
     fun rank(keys: MatchKeys, needle: String, compactNeedle: String): Int? {
         return when {
@@ -102,17 +126,14 @@ object SearchText {
 
     private object HanLatin {
         private val transliterator = runCatching { Transliterator.getInstance("Han-Latin") }.getOrNull()
-        private val marks = "\\p{M}+".toRegex()
 
         fun of(label: String): String {
             if (TextUtils.isEmpty(label)) {
                 return ""
             }
             val latin = transliterator?.transliterate(label) ?: label
-            return Normalizer.normalize(latin, Normalizer.Form.NFD)
-                .replace(marks, "")
+            return stripDiacritics(latin)
                 .lowercase(Locale.getDefault())
-                .trim()
         }
     }
 
