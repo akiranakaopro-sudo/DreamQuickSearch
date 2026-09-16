@@ -152,6 +152,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
+        // Keep the previous results on screen until each source posts its next batch.
+        // Clearing here flashes an empty list between keystrokes (e.g. "a" -> "an").
         currentQuery = query
         appsReady = false
         settingsReady = false
@@ -160,22 +162,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         notesReady = false
         calendarReady = false
         filesReady = false
-        appAdapter.submit(emptyList(), query)
-        settingsAdapter.submit(emptyList(), query)
-        contactsAdapter.submit(emptyList(), query)
-        messagesAdapter.submit(emptyList(), query)
-        notesAdapter.submit(emptyList(), query)
-        calendarAdapter.submit(emptyList(), query)
-        filesAdapter.submit(emptyList(), query)
-        appsHeader.hide()
-        settingsHeader.hide()
-        contactsHeader.hide()
-        messagesHeader.hide()
-        notesHeader.hide()
-        calendarHeader.hide()
-        filesHeader.hide()
         binding.emptyState.visibility = View.GONE
-        captureResultsScroll()
     }
 
     override fun onApps(query: String, apps: List<InstalledApp>) {
