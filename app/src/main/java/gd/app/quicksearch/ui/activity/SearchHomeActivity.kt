@@ -8,7 +8,9 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
@@ -45,6 +47,7 @@ import gd.app.quicksearch.ui.home.SearchMessagesAdapter
 import gd.app.quicksearch.ui.home.SearchNotesAdapter
 import gd.app.quicksearch.ui.home.SearchSettingsAdapter
 import gd.app.quicksearch.ui.home.SectionHeaderAdapter
+import kotlin.math.abs
 
 class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
@@ -76,6 +79,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var suppressQueryDispatch = false
     private var resultsAtTop = true
     private var restoreImeAfterResultsScroll = false
+    private var leftTopDuringResultsScroll = false
     private var currentQuery = ""
     private val launcher = SearchLauncher(this) { localSearch.refreshApps() }
 
@@ -326,10 +330,39 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             )
             itemAnimator = null
             setHasFixedSize(true)
+            var dragStartY = 0f
+            var dragHidIme = false
+            val touchSlop = ViewConfiguration.get(this@SearchHomeActivity).scaledTouchSlop
+            addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+                override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                    when (e.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            dragStartY = e.y
+                            dragHidIme = false
+                        }
+
+                        MotionEvent.ACTION_MOVE -> {
+                            // Short result lists never leave the top, so scroll
+                            // callbacks stay silent — still dismiss on a drag.
+                            if (!dragHidIme && abs(e.y - dragStartY) > touchSlop) {
+                                dragHidIme = true
+                                restoreImeAfterResultsScroll = true
+                                hideIme()
+                            }
+                        }
+                    }
+                    return false
+                }
+            })
             addOnScrollListener(object : RecyclerView.OnScrollListener() {
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    resultsAtTop = !recyclerView.canScrollVertically(-1)
-                    if (restoreImeAfterResultsScroll && !resultsAtTop) {
+                    val atTop = !recyclerView.canScrollVertically(-1)
+                    if (!atTop) {
+                        leftTopDuringResultsScroll = true
+                    }
+                    resultsAtTop = atTop
+                    if (dy > 0) {
+                        restoreImeAfterResultsScroll = true
                         hideIme()
                     }
                 }
@@ -343,10 +376,16 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
                         RecyclerView.SCROLL_STATE_IDLE -> {
                             resultsAtTop = !recyclerView.canScrollVertically(-1)
-                            if (restoreImeAfterResultsScroll && resultsAtTop) {
+                            // Only reopen after the list had actually left the top;
+                            // short lists stay at the top and should keep the IME away.
+                            if (restoreImeAfterResultsScroll &&
+                                resultsAtTop &&
+                                leftTopDuringResultsScroll
+                            ) {
                                 showIme()
                             }
                             restoreImeAfterResultsScroll = false
+                            leftTopDuringResultsScroll = false
                         }
                     }
                 }
@@ -498,19 +537,27 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private fun captureResultsScroll() {
         binding.searchResults.post {
             resultsAtTop = !binding.searchResults.canScrollVertically(-1)
+            leftTopDuringResultsScroll = false
         }
     }
 
     private fun showIme() {
         val input = binding.searchBar.searchInput
         input.requestFocus()
+        WindowCompat.getInsetsController(window, input).show(WindowInsetsCompat.Type.ime())
         val imm = getSystemService(InputMethodManager::class.java) ?: return
         imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun hideIme() {
+        val input = binding.searchBar.searchInput
+        // Drop focus so windowSoftInputMode=stateVisible cannot reopen the IME.
+        if (input.hasFocus()) {
+            input.clearFocus()
+        }
+        WindowCompat.getInsetsController(window, input).hide(WindowInsetsCompat.Type.ime())
         val imm = getSystemService(InputMethodManager::class.java) ?: return
-        imm.hideSoftInputFromWindow(binding.searchBar.searchInput.windowToken, 0)
+        imm.hideSoftInputFromWindow(input.windowToken, 0)
     }
 
     private fun registerPackageChanges() {
