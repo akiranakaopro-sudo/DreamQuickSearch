@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -56,11 +57,25 @@ class SearchCategoryActivity : AppCompatActivity() {
         launcher = SearchLauncher(this)
         binding.categoryTitle.text = getString(category.titleRes)
         binding.categoryBack.setOnClickListener { finish() }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    finish()
+                }
+            },
+        )
         binding.categoryEmptyState.findViewById<TextView>(com.coui.appcompat.R.id.empty_view_title)
             ?.setTextColor(ContextCompat.getColor(this, R.color.search_bar_text))
         insetContent()
         val search = bindAdapter(category, query)
         worker = newWorker().also { it.execute(search) }
+    }
+
+    override fun finish() {
+        super.finish()
+        // Translucent wallpaper activities flash with the default close animation.
+        overridePendingTransition(0, 0)
     }
 
     override fun onDestroy() {

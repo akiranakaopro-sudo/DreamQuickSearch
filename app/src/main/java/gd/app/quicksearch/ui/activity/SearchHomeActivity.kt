@@ -1,6 +1,7 @@
 package gd.app.quicksearch.ui.activity
 
 import android.Manifest
+import android.app.ActivityOptions
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -461,7 +462,9 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             return
         }
         hideIme()
-        startActivity(SearchCategoryActivity.intent(this, category, currentQuery))
+        val options = ActivityOptions.makeCustomAnimation(this, 0, 0)
+        startActivity(SearchCategoryActivity.intent(this, category, currentQuery), options.toBundle())
+        overridePendingTransition(0, 0)
     }
 
     private fun updateEmptyState(query: String) {

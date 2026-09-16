@@ -148,6 +148,7 @@
             android:name=".ui.activity.SearchCategoryActivity"
             android:exported="false"
             android:parentActivityName=".ui.activity.SearchHomeActivity"
+            android:theme="@style/Theme.QuickSearchBox.NoAnimation"
             android:windowSoftInputMode="adjustNothing|stateHidden" />
     </application>
 </manifest>

@@ -19,4 +19,12 @@
         <item name="couiColorCardBackground">@color/search_category_card</item>
         <item name="couiColorCardPressed">@color/search_category_card_pressed</item>
     </style>
+
+    <!-- Opaque close avoids compositing two translucent wallpaper windows. -->
+    <style name="Theme.QuickSearchBox.NoAnimation" parent="Theme.QuickSearchBox">
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
 </resources>
