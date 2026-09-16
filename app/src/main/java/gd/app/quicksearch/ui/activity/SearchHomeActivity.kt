@@ -152,8 +152,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         if (isDestroyed || isFinishing) {
             return
         }
-        // Keep the previous results on screen until each source posts its next batch.
-        // Clearing here flashes an empty list between keystrokes (e.g. "a" -> "an").
+        // Keep the previous results / empty state on screen until each source posts
+        // its next batch. Hiding either here flashes between keystrokes.
         currentQuery = query
         appsReady = false
         settingsReady = false
@@ -162,7 +162,6 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         notesReady = false
         calendarReady = false
         filesReady = false
-        binding.emptyState.visibility = View.GONE
     }
 
     override fun onApps(query: String, apps: List<InstalledApp>) {
@@ -455,22 +454,40 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     }
 
     private fun updateEmptyState(query: String) {
-        val empty = query.isNotEmpty() &&
-            appsReady &&
+        if (query.isEmpty()) {
+            setEmptyStateVisible(false)
+            return
+        }
+        val hasResults = appAdapter.itemCount > 0 ||
+            settingsAdapter.itemCount > 0 ||
+            contactsAdapter.itemCount > 0 ||
+            messagesAdapter.itemCount > 0 ||
+            notesAdapter.itemCount > 0 ||
+            calendarAdapter.itemCount > 0 ||
+            filesAdapter.itemCount > 0
+        if (hasResults) {
+            setEmptyStateVisible(false)
+            return
+        }
+        val allReady = appsReady &&
             settingsReady &&
             contactsReady &&
             messagesReady &&
             notesReady &&
             calendarReady &&
-            filesReady &&
-            appAdapter.itemCount == 0 &&
-            settingsAdapter.itemCount == 0 &&
-            contactsAdapter.itemCount == 0 &&
-            messagesAdapter.itemCount == 0 &&
-            notesAdapter.itemCount == 0 &&
-            calendarAdapter.itemCount == 0 &&
-            filesAdapter.itemCount == 0
-        binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
+            filesReady
+        // While sources are still loading, keep the current empty state.
+        // Hiding it on the first empty source causes a flicker between keystrokes.
+        if (allReady) {
+            setEmptyStateVisible(true)
+        }
+    }
+
+    private fun setEmptyStateVisible(visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        if (binding.emptyState.visibility != visibility) {
+            binding.emptyState.visibility = visibility
+        }
     }
 
     /** Inline sections stay short; the rest is one tap away behind "More". */
