@@ -36,7 +36,10 @@
         android:textColor="@color/search_bar_text"
         android:textColorHint="@color/search_bar_hint"
         android:textCursorDrawable="@null"
-        android:textSize="@dimen/search_bar_text_size" />
+        android:textSize="@dimen/search_bar_text_size">
+
+        <requestFocus />
+    </EditText>
 
     <ImageView
         android:id="@+id/search_voice"

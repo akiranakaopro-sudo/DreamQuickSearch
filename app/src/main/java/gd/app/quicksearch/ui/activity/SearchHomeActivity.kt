@@ -390,6 +390,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             localSearch.submitNow(input.text?.toString().orEmpty())
         }
         updateVoiceOrClear(input.text?.toString().orEmpty())
+        input.requestFocus()
+        input.post { showIme() }
     }
 
     private fun updateVoiceOrClear(query: String) {
