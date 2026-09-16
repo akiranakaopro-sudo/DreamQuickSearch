@@ -131,6 +131,7 @@
 
         <activity
             android:name=".ui.activity.SearchHomeActivity"
+            android:enableOnBackInvokedCallback="false"
             android:exported="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustNothing|stateVisible">
@@ -146,6 +147,7 @@
 
         <activity
             android:name=".ui.activity.SearchCategoryActivity"
+            android:enableOnBackInvokedCallback="false"
             android:exported="false"
             android:parentActivityName=".ui.activity.SearchHomeActivity"
             android:theme="@style/Theme.QuickSearchBox.NoAnimation"
