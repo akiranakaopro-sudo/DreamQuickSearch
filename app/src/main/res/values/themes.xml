@@ -5,7 +5,9 @@
         <item name="windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:windowIsTranslucent">false</item>
+        <!-- Translucent so live wallpaper frost can show when bake is unavailable.
+             Dialer bake path still fills the window with an opaque blur drawable. -->
+        <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackgroundCacheHint">@null</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
@@ -21,7 +23,6 @@
         <item name="couiColorCardPressed">@color/search_category_card_pressed</item>
     </style>
 
-    <!-- More uses the same opaque frost without a window transition. -->
     <style name="Theme.QuickSearchBox.NoAnimation" parent="Theme.QuickSearchBox">
         <item name="android:windowAnimationStyle">@null</item>
     </style>

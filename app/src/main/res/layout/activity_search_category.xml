@@ -18,13 +18,14 @@
         android:id="@+id/blur_layer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
 
     <View
         android:id="@+id/blur_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/search_home_scrim"
+        android:background="@drawable/search_home_scrim"
         android:importantForAccessibility="no" />
 
     <LinearLayout

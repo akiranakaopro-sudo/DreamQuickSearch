@@ -110,11 +110,15 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.setBackgroundDrawableResource(android.R.color.transparent)
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        SearchHomeBackdrop.applyCachedToWindow(this)
         binding = ActivitySearchHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        backdrop = SearchHomeBackdrop(this, binding.blurBackdrop, binding.blurLayer).also { it.apply() }
+        backdrop = SearchHomeBackdrop(
+            this,
+            binding.blurBackdrop,
+            binding.blurScrim,
+            binding.blurLayer,
+        ).also { it.apply() }
         setupResults()
         setupSearch()
         insetContent()

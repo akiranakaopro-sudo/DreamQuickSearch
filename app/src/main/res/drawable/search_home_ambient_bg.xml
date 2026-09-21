@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder until wallpaper blur is ready (same role as Dialer oppo_incall_ambient_bg). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:centerColor="#243044"
+        android:endColor="#121820"
+        android:startColor="#3A4A6B"
+        android:type="linear" />
+</shape>

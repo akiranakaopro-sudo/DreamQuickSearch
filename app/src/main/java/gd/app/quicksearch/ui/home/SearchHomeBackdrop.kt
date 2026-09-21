@@ -2,101 +2,114 @@ package gd.app.quicksearch.ui.home
 
 import android.app.Activity
 import android.app.WallpaperManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.ColorFilter
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.PixelFormat
-import android.graphics.RadialGradient
-import android.graphics.Rect
-import android.graphics.RenderEffect
-import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
-import androidx.core.graphics.ColorUtils
-import androidx.core.view.doOnAttach
 import com.oplus.graphics.OplusBlurParam
 import com.oplus.view.ViewRootManager
 import gd.app.quicksearch.R
 import java.lang.reflect.Method
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
+/**
+ * ColorOS InCall-style frosted wallpaper for search (DreamDialer skill):
+ *
+ * 1. Prefer baking once with [FastBlur] (radius 25, scale 4), cache, paint on
+ *    [backdropView] + scrim — no live compositor cost.
+ * 2. If wallpaper pixels are unreadable (normal apps often cannot call
+ *    WallpaperManager.getBitmap), fall back to FLAG_SHOW_WALLPAPER + one Oplus
+ *    background-blur drawable so the frost still matches the live wallpaper.
+ */
 class SearchHomeBackdrop(
     private val activity: Activity,
     private val backdropView: ImageView,
-    private val blurLayer: View,
+    private val scrimView: View? = null,
+    private val blurHost: View? = null,
 ) {
     private val wallpaperManager = WallpaperManager.getInstance(activity)
-    private val worker: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "wallpaper-frost").apply { isDaemon = true }
-    }
     private var colorsListener: Any? = null
-    private var blurDrawable: Drawable? = null
-    @Volatile
-    private var usingCompositor = false
+    private var liveBlurDrawable: Drawable? = null
     @Volatile
     private var released = false
+    private var usingLiveBlur = false
 
     fun apply() {
-        showSystemWallpaper()
-        blurLayer.background = null
+        applyCachedToWindow(activity)
         if (Build.VERSION.SDK_INT >= 27) {
             colorsListener = WallpaperPaletteApi.listen(
                 wallpaperManager,
                 Handler(Looper.getMainLooper()),
-                ::onWallpaperChanged,
-            )
+            ) {
+                if (!released) {
+                    invalidateAndReload()
+                }
+            }
         }
-        blurLayer.doOnAttach { view ->
-            view.post {
-                if (!released && frostWallpaperInCompositor(view)) {
-                    usingCompositor = true
-                    backdropView.setImageDrawable(null)
-                    if (Build.VERSION.SDK_INT >= 31) {
-                        backdropView.setRenderEffect(null)
-                    }
-                } else if (!released) {
-                    loadFrostedWallpaper()
+        paintBackdrop()
+    }
+
+    fun release() {
+        released = true
+        if (Build.VERSION.SDK_INT >= 27) {
+            WallpaperPaletteApi.stopListening(wallpaperManager, colorsListener)
+        }
+        colorsListener = null
+        liveBlurDrawable = null
+        blurHost?.background = null
+    }
+
+    private fun paintBackdrop() {
+        ensureBlurredWallpaper(activity.applicationContext)
+        val blur = copyCachedBlur(activity)
+        if (blur != null) {
+            usingLiveBlur = false
+            clearLiveWallpaperFlags()
+            backdropView.setImageDrawable(blur)
+            backdropView.visibility = View.VISIBLE
+            blurHost?.background = null
+            blurHost?.visibility = View.GONE
+            scrimView?.setBackgroundResource(R.drawable.search_home_scrim)
+            scrimView?.visibility = View.VISIBLE
+            activity.window.setBackgroundDrawable(copyCachedBlur(activity))
+            return
+        }
+
+        // Dialer bake unavailable — frosted wallpaper via public blur-behind APIs.
+        usingLiveBlur = true
+        enableLiveWallpaperFlags()
+        backdropView.setImageDrawable(null)
+        backdropView.visibility = View.GONE
+        activity.findViewById<View>(R.id.search_home_root)?.background = null
+        activity.findViewById<View>(R.id.category_root)?.background = null
+        blurHost?.background = null
+        blurHost?.visibility = View.GONE
+        scrimView?.setBackgroundResource(R.drawable.search_home_scrim_soft)
+        scrimView?.visibility = View.VISIBLE
+        // Prefer Oplus background-blur drawable when the platform allows it;
+        // otherwise FLAG_BLUR_BEHIND + setBackgroundBlurRadius already frosts.
+        val host = blurHost
+        if (host != null) {
+            host.visibility = View.VISIBLE
+            host.post {
+                if (!released && usingLiveBlur) {
+                    val ok = frostWallpaperInCompositor(host)
+                    Log.i(TAG, "live frost drawable applied=$ok (window blur-behind always on)")
                 }
             }
         }
     }
 
-    fun release() {
-        released = true
-        usingCompositor = false
-        if (Build.VERSION.SDK_INT >= 27) {
-            WallpaperPaletteApi.stopListening(wallpaperManager, colorsListener)
-        }
-        colorsListener = null
-        blurDrawable = null
-        worker.shutdownNow()
-        blurLayer.background = null
-        backdropView.setImageDrawable(null)
-        if (Build.VERSION.SDK_INT >= 31) {
-            backdropView.setRenderEffect(null)
-        }
-    }
-
-    private fun onWallpaperChanged() {
-        if (!usingCompositor) {
-            loadFrostedWallpaper()
-        }
-    }
-
-    private fun showSystemWallpaper() {
+    private fun enableLiveWallpaperFlags() {
         activity.window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER or
                 WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
@@ -104,15 +117,25 @@ class SearchHomeBackdrop(
         activity.window.setBackgroundDrawableResource(android.R.color.transparent)
         if (Build.VERSION.SDK_INT >= 31) {
             activity.window.attributes = activity.window.attributes.apply {
-                blurBehindRadius = WINDOW_BLUR_RADIUS_PX
+                blurBehindRadius = LIVE_BLUR_RADIUS_PX
             }
-            activity.window.setBackgroundBlurRadius(WINDOW_BLUR_RADIUS_PX)
+            activity.window.setBackgroundBlurRadius(LIVE_BLUR_RADIUS_PX)
+        }
+    }
+
+    private fun clearLiveWallpaperFlags() {
+        activity.window.clearFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER or
+                WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
+        )
+        if (Build.VERSION.SDK_INT >= 31) {
+            activity.window.setBackgroundBlurRadius(0)
         }
     }
 
     private fun frostWallpaperInCompositor(target: View): Boolean {
         return runCatching {
-            val radius = target.resources.getDimensionPixelSize(R.dimen.search_home_blur_radius)
+            val radius = target.resources.getDimensionPixelSize(R.dimen.search_home_live_blur_radius)
             val drawable = createBlurDrawable(target) ?: return false
             val params = OplusBlurParam().apply {
                 setBlurType(OplusBlurParam.BLUR_TYPE_QUALITY_KAWASE)
@@ -128,7 +151,7 @@ class SearchHomeBackdrop(
             val ext = call(wrapper, "getExtImpl")
             call(ext, "setBlurParams", arrayOf(OplusBlurParam::class.java), params)
             target.background = drawable
-            blurDrawable = drawable
+            liveBlurDrawable = drawable
             true
         }.getOrDefault(false)
     }
@@ -140,143 +163,6 @@ class SearchHomeBackdrop(
         }
         val viewRootImpl = call(target, "getViewRootImpl") ?: return null
         return call(viewRootImpl, "createBackgroundBlurDrawable") as? Drawable
-    }
-
-    private fun loadFrostedWallpaper() {
-        if (released) {
-            return
-        }
-        val width = backdropView.width
-        val height = backdropView.height
-        runCatching {
-            worker.execute {
-                val bitmap = loadWallpaperBitmap(width, height)?.takeIf { it.hasVisibleColor() }
-                val palette = if (Build.VERSION.SDK_INT >= 27) {
-                    WallpaperPaletteApi.read(wallpaperManager)
-                } else {
-                    null
-                }
-                backdropView.post {
-                    if (!released) {
-                        showFrostedWallpaper(bitmap, palette)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun showFrostedWallpaper(bitmap: Bitmap?, palette: IntArray?) {
-        when {
-            bitmap != null -> {
-                backdropView.setImageBitmap(bitmap)
-                blurLayer.background = null
-            }
-            palette != null -> {
-                backdropView.setImageDrawable(null)
-                blurLayer.background = WallpaperPaletteFrostDrawable(palette).apply {
-                    alpha = PALETTE_OVERLAY_ALPHA
-                }
-            }
-            else -> {
-                backdropView.setImageDrawable(null)
-                blurLayer.background = ColorDrawable(FROST_FALLBACK_OVERLAY)
-            }
-        }
-        backdropView.visibility = View.VISIBLE
-        if (Build.VERSION.SDK_INT >= 31) {
-            val blur = bitmap?.let {
-                RenderEffect.createBlurEffect(
-                    WALLPAPER_BLUR_RADIUS_PX,
-                    WALLPAPER_BLUR_RADIUS_PX,
-                    Shader.TileMode.CLAMP,
-                )
-            }
-            backdropView.setRenderEffect(blur)
-        }
-    }
-
-    private fun loadWallpaperBitmap(targetWidth: Int, targetHeight: Int): Bitmap? {
-        decodeWallpaperFile(wallpaperManager)?.let { return it }
-        val drawable = runCatching { wallpaperManager.peekFastDrawable() }.getOrNull()
-            ?: runCatching { wallpaperManager.peekDrawable() }.getOrNull()
-            ?: runCatching { wallpaperManager.fastDrawable }.getOrNull()
-            ?: runCatching { wallpaperManager.drawable }.getOrNull()
-            ?: runCatching { @Suppress("DEPRECATION") activity.wallpaper }.getOrNull()
-        return drawable?.let { drawableToBlurSource(it, targetWidth, targetHeight) }
-    }
-
-    private fun decodeWallpaperFile(manager: WallpaperManager): Bitmap? {
-        return runCatching {
-            manager.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { file ->
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = 4
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                }
-                BitmapFactory.decodeFileDescriptor(file.fileDescriptor, null, options)
-            }
-        }.getOrNull()
-    }
-
-    private fun drawableToBlurSource(
-        drawable: Drawable,
-        targetWidth: Int,
-        targetHeight: Int,
-    ): Bitmap? {
-        if (drawable is BitmapDrawable && drawable.bitmap != null) {
-            return scaleForBlur(drawable.bitmap)
-        }
-        val width = drawable.intrinsicWidth.takeIf { it > 0 }
-            ?: targetWidth.takeIf { it > 0 }
-            ?: return null
-        val height = drawable.intrinsicHeight.takeIf { it > 0 }
-            ?: targetHeight.takeIf { it > 0 }
-            ?: return null
-        val sample = sampleSize(width, height)
-        val bitmap = Bitmap.createBitmap(
-            (width / sample).coerceAtLeast(1),
-            (height / sample).coerceAtLeast(1),
-            Bitmap.Config.ARGB_8888,
-        )
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, bitmap.width, bitmap.height)
-        drawable.draw(canvas)
-        return bitmap
-    }
-
-    private fun scaleForBlur(source: Bitmap): Bitmap {
-        val sample = sampleSize(source.width, source.height)
-        if (sample <= 1) {
-            return source
-        }
-        return Bitmap.createScaledBitmap(
-            source,
-            (source.width / sample).coerceAtLeast(1),
-            (source.height / sample).coerceAtLeast(1),
-            true,
-        )
-    }
-
-    private fun sampleSize(width: Int, height: Int): Int {
-        val maxEdge = maxOf(width, height).coerceAtLeast(1)
-        var sample = 1
-        while (maxEdge / sample > MAX_BLUR_SOURCE_EDGE_PX) {
-            sample *= 2
-        }
-        return sample
-    }
-
-    private fun Bitmap.hasVisibleColor(): Boolean {
-        if (width < 2 || height < 2) {
-            return false
-        }
-        val samples = intArrayOf(
-            getPixel(width / 2, height / 2),
-            getPixel(width / 4, height / 4),
-            getPixel(width * 3 / 4, height * 3 / 4),
-        )
-        return samples.any { pixel ->
-            Color.red(pixel) + Color.green(pixel) + Color.blue(pixel) > 48
-        }
     }
 
     private fun call(
@@ -303,23 +189,218 @@ class SearchHomeBackdrop(
         return null
     }
 
+    private fun invalidateAndReload() {
+        synchronized(BLUR_LOCK) {
+            sCachedBlurredWallpaper = null
+        }
+        Thread({
+            ensureBlurredWallpaper(activity.applicationContext)
+            if (!released) {
+                activity.runOnUiThread {
+                    if (!released) {
+                        paintBackdrop()
+                    }
+                }
+            }
+        }, "search-blur-reload").apply {
+            priority = Thread.NORM_PRIORITY - 1
+            start()
+        }
+    }
+
     companion object {
-        private const val WINDOW_BLUR_RADIUS_PX = 150
-        private const val WALLPAPER_BLUR_RADIUS_PX = 64f
-        private const val MAX_BLUR_SOURCE_EDGE_PX = 320
-        private const val PALETTE_OVERLAY_ALPHA = 156
-        private const val FROST_FALLBACK_OVERLAY = 0x99071923.toInt()
+        private const val TAG = "SearchHomeBackdrop"
+        /** Same knobs as InCallActivity.loadBlurredWallpaperBackground. */
+        private const val BLUR_RADIUS = 25
+        private const val BLUR_SCALE = 4
+        private const val MAX_WALLPAPER_EDGE_PX = 720
+        private const val LIVE_BLUR_RADIUS_PX = 150
+        private const val WALLPAPER_CACHE_NAME = "wallpaper.bin"
+
+        private val BLUR_LOCK = Any()
+        @Volatile
+        private var sCachedBlurredWallpaper: Drawable? = null
+
+        fun prefetch(context: Context?) {
+            if (context == null || sCachedBlurredWallpaper != null) {
+                return
+            }
+            Thread(
+                { ensureBlurredWallpaper(context.applicationContext) },
+                "search-blur-prefetch",
+            ).apply {
+                priority = Thread.NORM_PRIORITY - 1
+                start()
+            }
+        }
+
+        fun applyCachedToWindow(activity: Activity) {
+            ensureBlurredWallpaper(activity.applicationContext)
+            val blur = copyCachedBlur(activity)
+            if (blur != null) {
+                activity.window.setBackgroundDrawable(blur)
+            } else {
+                // Leave transparent so FLAG_SHOW_WALLPAPER + blur-behind can frost.
+                activity.window.setBackgroundDrawableResource(android.R.color.transparent)
+            }
+        }
+
+        private fun copyCachedBlur(context: Context): Drawable? {
+            val cached = sCachedBlurredWallpaper
+            if (cached is BitmapDrawable) {
+                val bmp = cached.bitmap
+                if (bmp != null && !bmp.isRecycled) {
+                    return BitmapDrawable(context.resources, bmp)
+                }
+            }
+            return cached
+        }
+
+        private fun ensureBlurredWallpaper(context: Context) {
+            if (sCachedBlurredWallpaper != null) {
+                return
+            }
+            synchronized(BLUR_LOCK) {
+                if (sCachedBlurredWallpaper != null) {
+                    return
+                }
+                val wallpaper = loadBlurredWallpaperBackground(context)
+                if (wallpaper != null) {
+                    sCachedBlurredWallpaper = wallpaper
+                }
+            }
+        }
+
+        private fun loadBlurredWallpaperBackground(context: Context): Drawable? {
+            return runCatching {
+                val wm = WallpaperManager.getInstance(context) ?: return null
+                val wallpaperBitmap = loadWallpaperBitmap(wm, context)
+                if (wallpaperBitmap == null) {
+                    Log.w(TAG, "wallpaper bitmap unavailable; will use live frost fallback")
+                    return null
+                }
+                if (wallpaperBitmap.width <= 0) {
+                    return null
+                }
+                Log.i(TAG, "baking frost ${wallpaperBitmap.width}x${wallpaperBitmap.height}")
+                val toBlur = if (wallpaperBitmap.config != Bitmap.Config.ARGB_8888) {
+                    wallpaperBitmap.copy(Bitmap.Config.ARGB_8888, false) ?: wallpaperBitmap
+                } else {
+                    wallpaperBitmap
+                }
+                val blurred = FastBlur.doBlur(toBlur, BLUR_RADIUS, BLUR_SCALE, false, 0)
+                    ?: return BitmapDrawable(context.resources, wallpaperBitmap)
+                Log.i(TAG, "frost ready ${blurred.width}x${blurred.height}")
+                cacheWallpaperSource(context, toBlur)
+                BitmapDrawable(context.resources, blurred)
+            }.onFailure {
+                Log.w(TAG, "loadBlurredWallpaperBackground failed", it)
+            }.getOrNull()
+        }
+
+        /** Keep a private copy so later launches can bake without WallpaperManager. */
+        private fun cacheWallpaperSource(context: Context, source: Bitmap) {
+            runCatching {
+                val out = java.io.File(context.filesDir, WALLPAPER_CACHE_NAME)
+                if (out.isFile && out.length() > 64L) {
+                    return
+                }
+                java.io.FileOutputStream(out).use { fos ->
+                    source.compress(Bitmap.CompressFormat.JPEG, 85, fos)
+                }
+            }
+        }
+
+        private fun loadWallpaperBitmap(wm: WallpaperManager, context: Context): Bitmap? {
+            decodeWallpaperFile(wm)?.let { return it }
+            runCatching {
+                val method = WallpaperManager::class.java.getMethod("getBitmap")
+                (method.invoke(wm) as? Bitmap)?.takeIf { it.width > 0 }?.let { return it }
+            }
+            val drawable = runCatching { wm.peekFastDrawable() }.getOrNull()
+                ?: runCatching { wm.peekDrawable() }.getOrNull()
+                ?: runCatching { wm.fastDrawable }.getOrNull()
+                ?: runCatching { wm.drawable }.getOrNull()
+            if (drawable is BitmapDrawable && drawable.bitmap != null && drawable.bitmap.hasVisibleColor()) {
+                return drawable.bitmap
+            }
+            if (drawable != null) {
+                val width = drawable.intrinsicWidth.takeIf { it > 0 }
+                    ?: context.resources.displayMetrics.widthPixels
+                val height = drawable.intrinsicHeight.takeIf { it > 0 }
+                    ?: context.resources.displayMetrics.heightPixels
+                val sample = sampleSize(width, height)
+                val bitmap = Bitmap.createBitmap(
+                    (width / sample).coerceAtLeast(1),
+                    (height / sample).coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888,
+                )
+                val canvas = Canvas(bitmap)
+                drawable.setBounds(0, 0, bitmap.width, bitmap.height)
+                drawable.draw(canvas)
+                if (bitmap.hasVisibleColor()) {
+                    return bitmap
+                }
+            }
+            // Last resort: wallpaper.bin dropped into files/ (system builds use getBitmap).
+            return decodeAppWallpaperCache(context)
+        }
+
+        private fun decodeAppWallpaperCache(context: Context): Bitmap? {
+            return runCatching {
+                val file = java.io.File(context.filesDir, WALLPAPER_CACHE_NAME)
+                if (!file.isFile || file.length() < 64L) {
+                    return null
+                }
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = 2
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+                BitmapFactory.decodeFile(file.absolutePath, options)
+            }.getOrNull()
+        }
+
+        private fun decodeWallpaperFile(manager: WallpaperManager): Bitmap? {
+            return runCatching {
+                manager.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { file ->
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = 2
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    }
+                    BitmapFactory.decodeFileDescriptor(file.fileDescriptor, null, options)
+                }
+            }.getOrNull()
+        }
+
+        private fun sampleSize(width: Int, height: Int): Int {
+            val maxEdge = maxOf(width, height).coerceAtLeast(1)
+            var sample = 1
+            while (maxEdge / sample > MAX_WALLPAPER_EDGE_PX) {
+                sample *= 2
+            }
+            return sample
+        }
+
+        private fun Bitmap.hasVisibleColor(): Boolean {
+            if (width < 2 || height < 2) {
+                return false
+            }
+            val samples = intArrayOf(
+                getPixel(width / 2, height / 2),
+                getPixel(width / 4, height / 4),
+                getPixel(width * 3 / 4, height * 3 / 4),
+            )
+            return samples.any { pixel ->
+                android.graphics.Color.red(pixel) +
+                    android.graphics.Color.green(pixel) +
+                    android.graphics.Color.blue(pixel) > 48
+            }
+        }
     }
 }
 
 @RequiresApi(27)
 private object WallpaperPaletteApi {
-    fun read(manager: WallpaperManager): IntArray? {
-        return runCatching {
-            manager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM)?.let(::palette)
-        }.getOrNull()
-    }
-
     fun listen(
         manager: WallpaperManager,
         handler: Handler,
@@ -339,94 +420,5 @@ private object WallpaperPaletteApi {
     fun stopListening(manager: WallpaperManager, listener: Any?) {
         val colorsListener = listener as? WallpaperManager.OnColorsChangedListener ?: return
         runCatching { manager.removeOnColorsChangedListener(colorsListener) }
-    }
-
-    private fun palette(colors: android.app.WallpaperColors): IntArray {
-        val primary = colors.primaryColor.toArgb()
-        return intArrayOf(
-            primary,
-            colors.secondaryColor?.toArgb() ?: primary,
-            colors.tertiaryColor?.toArgb() ?: primary,
-        )
-    }
-}
-
-private class WallpaperPaletteFrostDrawable(
-    palette: IntArray,
-) : Drawable() {
-    private val primary = palette[0]
-    private val secondary = palette.getOrElse(1) { primary }
-    private val tertiary = palette.getOrElse(2) { secondary }
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG)
-    private var backgroundShader: Shader? = null
-    private var glowShaders: List<Shader> = emptyList()
-    private var drawableAlpha = 255
-
-    override fun onBoundsChange(bounds: Rect) {
-        val width = bounds.width().toFloat().coerceAtLeast(1f)
-        val height = bounds.height().toFloat().coerceAtLeast(1f)
-        backgroundShader = LinearGradient(
-            bounds.left.toFloat(),
-            bounds.top.toFloat(),
-            bounds.right.toFloat(),
-            bounds.bottom.toFloat(),
-            intArrayOf(darken(primary, 0.58f), darken(secondary, 0.7f), darken(tertiary, 0.82f)),
-            floatArrayOf(0f, 0.48f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-        glowShaders = listOf(
-            glow(bounds.left + width * 0.28f, bounds.top + height * 0.14f, width * 0.52f, primary),
-            glow(bounds.left + width * 0.88f, bounds.top + height * 0.34f, width * 0.42f, secondary),
-            glow(bounds.left + width * 0.18f, bounds.top + height * 0.7f, width * 0.56f, tertiary),
-        )
-    }
-
-    override fun draw(canvas: Canvas) {
-        paint.alpha = drawableAlpha
-        paint.shader = backgroundShader
-        canvas.drawRect(bounds, paint)
-        glowShaders.forEach { shader ->
-            paint.shader = shader
-            canvas.drawRect(bounds, paint)
-        }
-        paint.shader = null
-        paint.color = 0x24000000
-        canvas.drawRect(bounds, paint)
-    }
-
-    override fun setAlpha(alpha: Int) {
-        drawableAlpha = alpha.coerceIn(0, 255)
-        invalidateSelf()
-    }
-
-    override fun setColorFilter(colorFilter: ColorFilter?) {
-        paint.colorFilter = colorFilter
-        invalidateSelf()
-    }
-
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
-
-    private fun glow(centerX: Float, centerY: Float, radius: Float, color: Int): Shader {
-        return RadialGradient(
-            centerX,
-            centerY,
-            radius.coerceAtLeast(1f),
-            intArrayOf(
-                ColorUtils.setAlphaComponent(color, 92),
-                ColorUtils.setAlphaComponent(color, 34),
-                Color.TRANSPARENT,
-            ),
-            floatArrayOf(0f, 0.46f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-    }
-
-    private fun darken(color: Int, amount: Float): Int {
-        return ColorUtils.blendARGB(color, FROST_BASE, amount)
-    }
-
-    companion object {
-        private const val FROST_BASE = 0xFF071923.toInt()
     }
 }

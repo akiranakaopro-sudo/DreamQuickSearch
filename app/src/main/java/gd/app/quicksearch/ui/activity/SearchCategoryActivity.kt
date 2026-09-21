@@ -49,11 +49,15 @@ class SearchCategoryActivity : AppCompatActivity() {
             return
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.setBackgroundDrawableResource(android.R.color.transparent)
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        SearchHomeBackdrop.applyCachedToWindow(this)
         binding = ActivitySearchCategoryBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        backdrop = SearchHomeBackdrop(this, binding.blurBackdrop, binding.blurLayer).also { it.apply() }
+        backdrop = SearchHomeBackdrop(
+            this,
+            binding.blurBackdrop,
+            binding.blurScrim,
+            binding.blurLayer,
+        ).also { it.apply() }
         launcher = SearchLauncher(this)
         binding.categoryTitle.text = getString(category.titleRes)
         binding.categoryBack.setOnClickListener { finish() }

@@ -13,8 +13,8 @@
     <dimen name="search_bar_divider_height">14dp</dimen>
     <dimen name="search_bar_text_size">16sp</dimen>
     <dimen name="search_bar_action_text_size">14sp</dimen>
-    <dimen name="search_home_blur_radius">200dp</dimen>
     <dimen name="search_bar_results_gap">12dp</dimen>
+    <dimen name="search_home_live_blur_radius">200dp</dimen>
     <dimen name="search_results_gap">16dp</dimen>
     <dimen name="search_section_title_padding_bottom">8dp</dimen>
     <dimen name="search_section_more_padding_horizontal">12dp</dimen>

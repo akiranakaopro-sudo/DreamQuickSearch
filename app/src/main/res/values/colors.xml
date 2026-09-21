@@ -6,7 +6,10 @@
     <color name="search_hint">#FF8A8A8A</color>
     <color name="search_accent">#FF0066FF</color>
     <color name="ic_launcher_background">#FF0066FF</color>
-    <color name="search_home_scrim">#26000000</color>
+    <!-- Same as Dialer oppo_incall_background_scrim over baked wallpaper blur. -->
+    <color name="search_home_scrim">#99000000</color>
+    <!-- Lighter over live wallpaper frost (compositor already softens). -->
+    <color name="search_home_scrim_soft">#26000000</color>
     <color name="search_bar_fill">#33FFFFFF</color>
     <color name="search_bar_icon">#D9FFFFFF</color>
     <color name="search_bar_hint">#99FFFFFF</color>
