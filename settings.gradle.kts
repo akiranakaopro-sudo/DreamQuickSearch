@@ -16,4 +16,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "DreamQuickSearch"
 include(":app")
-include(":coui")
