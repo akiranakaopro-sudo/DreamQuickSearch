@@ -538,9 +538,14 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
 
     private fun insetContent() {
         val extraTop = resources.getDimensionPixelSize(R.dimen.search_bar_margin_top)
+        val extraBottom = resources.getDimensionPixelSize(R.dimen.search_results_gap)
+        // Keep the results RecyclerView edge-to-edge at the bottom; put the nav-bar
+        // inset on the list padding so items clear the gesture area without a
+        // wallpaper strip under the list.
         ViewCompat.setOnApplyWindowInsetsListener(binding.searchContent) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.updatePadding(top = bars.top + extraTop, bottom = bars.bottom)
+            view.updatePadding(top = bars.top + extraTop, bottom = 0)
+            binding.searchResults.updatePadding(bottom = bars.bottom + extraBottom)
             insets
         }
     }

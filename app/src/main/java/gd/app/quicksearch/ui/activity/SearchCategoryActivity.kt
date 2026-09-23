@@ -182,9 +182,11 @@ class SearchCategoryActivity : AppCompatActivity() {
 
     private fun insetContent() {
         val extraTop = resources.getDimensionPixelSize(R.dimen.search_bar_margin_top)
+        val extraBottom = resources.getDimensionPixelSize(R.dimen.search_results_gap)
         ViewCompat.setOnApplyWindowInsetsListener(binding.categoryContent) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.updatePadding(top = bars.top + extraTop, bottom = bars.bottom)
+            view.updatePadding(top = bars.top + extraTop, bottom = 0)
+            binding.categoryResults.updatePadding(bottom = bars.bottom + extraBottom)
             insets
         }
     }
