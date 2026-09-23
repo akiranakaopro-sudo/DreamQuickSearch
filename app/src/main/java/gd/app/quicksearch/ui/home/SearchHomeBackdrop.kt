@@ -192,6 +192,7 @@ class SearchHomeBackdrop(
     private fun invalidateAndReload() {
         synchronized(BLUR_LOCK) {
             sCachedBlurredWallpaper = null
+            clearWallpaperSourceCache(activity.applicationContext)
         }
         Thread({
             ensureBlurredWallpaper(activity.applicationContext)
@@ -302,21 +303,21 @@ class SearchHomeBackdrop(
         private fun cacheWallpaperSource(context: Context, source: Bitmap) {
             runCatching {
                 val out = java.io.File(context.filesDir, WALLPAPER_CACHE_NAME)
-                if (out.isFile && out.length() > 64L) {
-                    return
-                }
                 java.io.FileOutputStream(out).use { fos ->
                     source.compress(Bitmap.CompressFormat.JPEG, 85, fos)
                 }
             }
         }
 
+        private fun clearWallpaperSourceCache(context: Context) {
+            runCatching {
+                java.io.File(context.filesDir, WALLPAPER_CACHE_NAME).delete()
+            }
+        }
+
         private fun loadWallpaperBitmap(wm: WallpaperManager, context: Context): Bitmap? {
             decodeWallpaperFile(wm)?.let { return it }
-            runCatching {
-                val method = WallpaperManager::class.java.getMethod("getBitmap")
-                (method.invoke(wm) as? Bitmap)?.takeIf { it.width > 0 }?.let { return it }
-            }
+            readWallpaperBitmap(wm)?.let { return it }
             val drawable = runCatching { wm.peekFastDrawable() }.getOrNull()
                 ?: runCatching { wm.peekDrawable() }.getOrNull()
                 ?: runCatching { wm.fastDrawable }.getOrNull()
@@ -346,6 +347,25 @@ class SearchHomeBackdrop(
             return decodeAppWallpaperCache(context)
         }
 
+        /** WallpaperManager.getBitmap is @SystemApi; needs READ_WALLPAPER_INTERNAL. */
+        private fun readWallpaperBitmap(wm: WallpaperManager): Bitmap? {
+            return try {
+                val method = WallpaperManager::class.java.getMethod("getBitmap")
+                (method.invoke(wm) as? Bitmap)?.takeIf { it.width > 0 }
+            } catch (se: SecurityException) {
+                Log.w(TAG, "getBitmap blocked: ${se.message}")
+                null
+            } catch (t: Throwable) {
+                val cause = t.cause
+                if (cause is SecurityException) {
+                    Log.w(TAG, "getBitmap blocked: ${cause.message}")
+                } else {
+                    Log.w(TAG, "getBitmap failed: ${t.message}")
+                }
+                null
+            }
+        }
+
         private fun decodeAppWallpaperCache(context: Context): Bitmap? {
             return runCatching {
                 val file = java.io.File(context.filesDir, WALLPAPER_CACHE_NAME)
@@ -361,7 +381,7 @@ class SearchHomeBackdrop(
         }
 
         private fun decodeWallpaperFile(manager: WallpaperManager): Bitmap? {
-            return runCatching {
+            return try {
                 manager.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { file ->
                     val options = BitmapFactory.Options().apply {
                         inSampleSize = 2
@@ -369,7 +389,13 @@ class SearchHomeBackdrop(
                     }
                     BitmapFactory.decodeFileDescriptor(file.fileDescriptor, null, options)
                 }
-            }.getOrNull()
+            } catch (se: SecurityException) {
+                Log.w(TAG, "getWallpaperFile blocked: ${se.message}")
+                null
+            } catch (t: Throwable) {
+                Log.w(TAG, "getWallpaperFile failed: ${t.message}")
+                null
+            }
         }
 
         private fun sampleSize(width: Int, height: Int): Int {

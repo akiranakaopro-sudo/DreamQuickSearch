@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Signature|privileged: needed for WallpaperManager.getBitmap / getWallpaperFile
+         so Dialer-style baked frost can run. Allowlisted in
+         privapp-permissions-dream-quicksearch.xml. -->
+    <uses-permission android:name="android.permission.READ_WALLPAPER_INTERNAL" />
 
     <queries>
         <intent>

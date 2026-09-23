@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <!-- DreamQuickSearch is system_ext/priv-app; signature|privileged permissions
+         must be allowlisted or PackageManager denies them at boot. -->
+    <privapp-permissions package="gd.app.quicksearch">
+        <permission name="android.permission.READ_WALLPAPER_INTERNAL"/>
+    </privapp-permissions>
+</permissions>
