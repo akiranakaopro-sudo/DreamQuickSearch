@@ -41,4 +41,6 @@ android {
 
 dependencies {
     implementation(project(":coui"))
+    // Unlocks View.mScrollY so COUI SpringOverScroller can drive list overscroll.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 }

@@ -23,7 +23,14 @@ class QsbApplicationWrapper : Application() {
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
-        // Must run before any WallpaperManager / blur reflection (Dialer pattern).
+        // COUI spring overscroll writes View.mScrollY via reflection (ViewNative).
+        // Double-reflection VMRuntime is filtered on generic Android 14; LSPosed
+        // HiddenApiBypass still reaches the field.
+        try {
+            org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("L")
+        } catch (_: Throwable) {
+        }
+        // Wallpaper / blur reflection (Dialer pattern).
         HiddenApiExempt.apply()
     }
 
