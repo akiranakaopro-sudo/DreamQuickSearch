@@ -20,6 +20,7 @@
     <string name="search_no_results">No matching results</string>
     <string name="search_no_apps">No matching apps</string>
     <string name="search_mms_empty">MMS</string>
+    <string name="search_swipe_up_to_exit">Swipe up to exit</string>
 
     <string name="setting_wifi">Wi‑Fi</string>
     <string name="setting_wifi_keywords">wifi,wi-fi,wlan,wireless,无线,无线网,无线局域网</string>

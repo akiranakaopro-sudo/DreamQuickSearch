@@ -6,9 +6,11 @@ import android.util.Log
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.recyclerview.widget.COUIRecyclerView
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.lang.reflect.Field
+import kotlin.math.max
 
 /**
  * COUIRecyclerView whose [scrollTo] actually writes View scroll offsets.
@@ -17,12 +19,24 @@ import java.lang.reflect.Field
  * is filtered from [Class.getDeclaredField], so ViewNative falls back to
  * [View.scrollTo] and the spring never appears. This subclass writes the fields
  * via HiddenApiBypass (same pattern as DreamRecorder BrowseCouiRecyclerView).
+ *
+ * Also reports completed bottom pull-up gestures so the host can show
+ * "Swipe up again to exit" and finish on the next pull.
  */
 class SearchResultsRecyclerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
 ) : COUIRecyclerView(context, attrs, defStyleAttr) {
+
+    /** Fired once per gesture when the user releases after pulling up at the bottom. */
+    var onBottomPullUp: (() -> Unit)? = null
+
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var trackingBottomPull = false
+    private var bottomPullAnchorY = 0f
+    private var bottomPullDistance = 0f
+    private var wasAtBottom = false
 
     init {
         overScrollMode = View.OVER_SCROLL_ALWAYS
@@ -85,7 +99,52 @@ class SearchResultsRecyclerView @JvmOverloads constructor(
         if (event.source and InputDevice.SOURCE_TOUCHSCREEN == 0) {
             event.source = InputDevice.SOURCE_TOUCHSCREEN
         }
-        return super.onTouchEvent(event)
+        var claimGesture = false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                trackingBottomPull = false
+                bottomPullDistance = 0f
+                wasAtBottom = !canScrollVertically(1)
+                if (wasAtBottom) {
+                    trackingBottomPull = true
+                    bottomPullAnchorY = event.rawY
+                    // Empty / short lists: super often returns false on DOWN and the
+                    // framework then drops MOVE/UP — claim the stream ourselves.
+                    claimGesture = true
+                }
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val atBottom = !canScrollVertically(1)
+                if (atBottom && !wasAtBottom) {
+                    // Hit the end mid-gesture — start measuring pull-up from here.
+                    trackingBottomPull = true
+                    bottomPullAnchorY = event.rawY
+                    bottomPullDistance = 0f
+                } else if (!atBottom && wasAtBottom) {
+                    trackingBottomPull = false
+                    bottomPullDistance = 0f
+                }
+                wasAtBottom = atBottom
+                if (trackingBottomPull && atBottom) {
+                    bottomPullDistance = max(0f, bottomPullAnchorY - event.rawY)
+                    claimGesture = true
+                }
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val pulled = trackingBottomPull &&
+                    !canScrollVertically(1) &&
+                    bottomPullDistance > touchSlop * 2
+                claimGesture = trackingBottomPull || pulled
+                trackingBottomPull = false
+                bottomPullDistance = 0f
+                if (pulled && event.actionMasked == MotionEvent.ACTION_UP) {
+                    onBottomPullUp?.invoke()
+                }
+            }
+        }
+        return super.onTouchEvent(event) || claimGesture
     }
 
     private fun applyScrollOffsets(x: Int, y: Int) {

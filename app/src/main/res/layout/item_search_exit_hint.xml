@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/exit_hint_label"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:paddingHorizontal="16dp"
+    android:paddingTop="@dimen/search_exit_hint_padding_top"
+    android:paddingBottom="@dimen/search_exit_hint_padding_bottom"
+    android:text="@string/search_swipe_up_to_exit"
+    android:textColor="@color/search_exit_hint"
+    android:textSize="@dimen/search_exit_hint_text_size" />

@@ -39,6 +39,7 @@ import gd.app.quicksearch.search.files.FilesIndex
 import gd.app.quicksearch.search.messages.MessageItem
 import gd.app.quicksearch.search.notes.NoteItem
 import gd.app.quicksearch.search.settings.SettingItem
+import gd.app.quicksearch.ui.home.ExitHintAdapter
 import gd.app.quicksearch.ui.home.SearchAppAdapter
 import gd.app.quicksearch.ui.home.SearchCalendarAdapter
 import gd.app.quicksearch.ui.home.SearchContactsAdapter
@@ -68,6 +69,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private lateinit var notesHeader: SectionHeaderAdapter
     private lateinit var calendarHeader: SectionHeaderAdapter
     private lateinit var filesHeader: SectionHeaderAdapter
+    private lateinit var exitHintAdapter: ExitHintAdapter
     private var backdrop: SearchHomeBackdrop? = null
     private var appsReady = true
     private var settingsReady = true
@@ -81,6 +83,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private var resultsAtTop = true
     private var restoreImeAfterResultsScroll = false
     private var leftTopDuringResultsScroll = false
+    private var exiting = false
     private var currentQuery = ""
     private val launcher = SearchLauncher(this) { localSearch.refreshApps() }
 
@@ -279,6 +282,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         calendarHeader.hide()
         filesHeader.hide()
         binding.emptyState.visibility = View.GONE
+        syncExitHint(hasResults = false)
         captureResultsScroll()
     }
 
@@ -301,6 +305,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         calendarAdapter = SearchCalendarAdapter(launcher::openCalendar)
         filesAdapter = SearchFilesAdapter(launcher::openFile)
         settingsAdapter = SearchSettingsAdapter(launcher::openSetting)
+        exitHintAdapter = ExitHintAdapter()
         binding.searchResults.apply {
             layoutManager = LinearLayoutManager(this@SearchHomeActivity)
             adapter = ConcatAdapter(
@@ -318,9 +323,13 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                 filesAdapter,
                 settingsHeader,
                 settingsAdapter,
+                exitHintAdapter,
             )
             itemAnimator = null
             setHasFixedSize(true)
+            onBottomPullUp = {
+                onBottomPullUpGesture()
+            }
             var dragStartY = 0f
             var dragHidIme = false
             val touchSlop = ViewConfiguration.get(this@SearchHomeActivity).scaledTouchSlop
@@ -369,7 +378,8 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
                             resultsAtTop = !recyclerView.canScrollVertically(-1)
                             // Only reopen after the list had actually left the top;
                             // short lists stay at the top and should keep the IME away.
-                            if (restoreImeAfterResultsScroll &&
+                            if (!exiting &&
+                                restoreImeAfterResultsScroll &&
                                 resultsAtTop &&
                                 leftTopDuringResultsScroll
                             ) {
@@ -385,6 +395,46 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         binding.emptyState.setAnimFileName("no_search_results_dark.json")
         binding.emptyState.findViewById<TextView>(com.coui.appcompat.R.id.empty_view_title)
             ?.setTextColor(ContextCompat.getColor(this, R.color.search_bar_text))
+        attachBottomPull(binding.emptyState)
+        syncExitHint(hasResults = false)
+    }
+
+    /** Pull-up exit on the no-results overlay (covers the list). */
+    private fun attachBottomPull(view: View) {
+        val slop = ViewConfiguration.get(this).scaledTouchSlop * 2
+        var tracking = false
+        var anchorY = 0f
+        var pull = 0f
+        view.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    tracking = true
+                    anchorY = event.rawY
+                    pull = 0f
+                    hideIme()
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (tracking) {
+                        pull = kotlin.math.max(0f, anchorY - event.rawY)
+                    }
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (tracking && pull > slop) {
+                        onBottomPullUpGesture()
+                    }
+                    tracking = false
+                    pull = 0f
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    tracking = false
+                    pull = 0f
+                }
+            }
+            true
+        }
     }
 
     private fun setupSearch() {
@@ -460,6 +510,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private fun updateEmptyState(query: String) {
         if (query.isEmpty()) {
             setEmptyStateVisible(false)
+            syncExitHint(hasResults = false)
             return
         }
         val hasResults = appAdapter.itemCount > 0 ||
@@ -471,6 +522,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             filesAdapter.itemCount > 0
         if (hasResults) {
             setEmptyStateVisible(false)
+            syncExitHint(hasResults = true)
             return
         }
         val allReady = appsReady &&
@@ -484,6 +536,22 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         // Hiding it on the first empty source causes a flicker between keystrokes.
         if (allReady) {
             setEmptyStateVisible(true)
+            syncExitHint(hasResults = false)
+        }
+    }
+
+    /**
+     * Empty query / no hits: pin "Swipe up to exit" on screen.
+     * Has results: put the same label as the last list row (scroll to see it).
+     */
+    private fun syncExitHint(hasResults: Boolean) {
+        if (hasResults) {
+            exitHintAdapter.show()
+            binding.exitHint.visibility = View.GONE
+        } else {
+            exitHintAdapter.hide()
+            binding.exitHint.visibility = View.VISIBLE
+            binding.exitHint.alpha = 1f
         }
     }
 
@@ -539,6 +607,7 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
     private fun insetContent() {
         val extraTop = resources.getDimensionPixelSize(R.dimen.search_bar_margin_top)
         val extraBottom = resources.getDimensionPixelSize(R.dimen.search_results_gap)
+        val hintMargin = resources.getDimensionPixelSize(R.dimen.search_exit_hint_margin_bottom)
         // Keep the results RecyclerView edge-to-edge at the bottom; put the nav-bar
         // inset on the list padding so items clear the gesture area without a
         // wallpaper strip under the list.
@@ -546,8 +615,40 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             view.updatePadding(top = bars.top + extraTop, bottom = 0)
             binding.searchResults.updatePadding(bottom = bars.bottom + extraBottom)
+            val lp = binding.exitHint.layoutParams
+            if (lp is android.widget.FrameLayout.LayoutParams) {
+                lp.bottomMargin = bars.bottom + hintMargin
+                binding.exitHint.layoutParams = lp
+            }
             insets
         }
+    }
+
+    private fun onBottomPullUpGesture() {
+        if (exiting) {
+            return
+        }
+        exitBySwipeUp()
+    }
+
+    private fun exitBySwipeUp() {
+        if (exiting) {
+            return
+        }
+        exiting = true
+        restoreImeAfterResultsScroll = false
+        hideIme()
+        binding.exitHint.visibility = View.GONE
+        val root = binding.searchHomeRoot
+        val distance = root.height.toFloat().coerceAtLeast(1f)
+        root.animate()
+            .translationY(-distance)
+            .setDuration(240)
+            .withEndAction {
+                finish()
+                overridePendingTransition(0, 0)
+            }
+            .start()
     }
 
     private fun captureResultsScroll() {

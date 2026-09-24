@@ -45,6 +45,7 @@
             android:layout_marginHorizontal="@dimen/search_bar_margin_horizontal" />
 
         <FrameLayout
+            android:id="@+id/results_pane"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="@dimen/search_bar_results_gap"
@@ -55,7 +56,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
+                android:clickable="true"
                 android:fadeScrollbars="true"
+                android:focusable="true"
                 android:overScrollMode="always"
                 android:scrollbars="none"
                 app:couiRecyclerViewEnableVibrator="true" />
@@ -69,6 +72,19 @@
                 app:anim_fileName="no_search_results_dark.json"
                 app:emptyViewSizeType="medium"
                 app:titleText="@string/search_no_results" />
+
+            <TextView
+                android:id="@+id/exit_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="@dimen/search_exit_hint_margin_bottom"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp"
+                android:text="@string/search_swipe_up_to_exit"
+                android:textColor="@color/search_exit_hint"
+                android:textSize="@dimen/search_exit_hint_text_size"
+                android:visibility="visible" />
         </FrameLayout>
     </LinearLayout>
 
