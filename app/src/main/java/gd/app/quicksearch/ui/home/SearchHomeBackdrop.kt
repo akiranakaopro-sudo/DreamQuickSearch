@@ -78,8 +78,7 @@ class SearchHomeBackdrop(
             backdropView.visibility = View.VISIBLE
             blurHost?.background = null
             blurHost?.visibility = View.GONE
-            scrimView?.setBackgroundResource(R.drawable.search_home_scrim)
-            scrimView?.visibility = View.VISIBLE
+            scrimView?.visibility = View.GONE
             activity.window.setBackgroundDrawable(copyCachedBlur(activity))
             return
         }
@@ -93,8 +92,7 @@ class SearchHomeBackdrop(
         activity.findViewById<View>(R.id.category_root)?.background = null
         blurHost?.background = null
         blurHost?.visibility = View.GONE
-        scrimView?.setBackgroundResource(R.drawable.search_home_scrim_soft)
-        scrimView?.visibility = View.VISIBLE
+        scrimView?.visibility = View.GONE
         // Prefer Oplus background-blur drawable when the platform allows it;
         // otherwise FLAG_BLUR_BEHIND + setBackgroundBlurRadius already frosts.
         val host = blurHost

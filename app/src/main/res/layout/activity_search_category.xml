@@ -25,8 +25,8 @@
         android:id="@+id/blur_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/search_home_scrim"
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/category_content"
