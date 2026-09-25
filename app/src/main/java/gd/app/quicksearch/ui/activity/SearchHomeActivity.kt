@@ -639,11 +639,9 @@ class SearchHomeActivity : AppCompatActivity(), LocalSearch.Listener {
         restoreImeAfterResultsScroll = false
         hideIme()
         binding.exitHint.visibility = View.GONE
-        val root = binding.searchHomeRoot
-        val distance = root.height.toFloat().coerceAtLeast(1f)
-        root.animate()
-            .translationY(-distance)
-            .setDuration(240)
+        binding.searchHomeRoot.animate()
+            .alpha(0f)
+            .setDuration(220)
             .withEndAction {
                 finish()
                 overridePendingTransition(0, 0)
